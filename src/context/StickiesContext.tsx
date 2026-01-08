@@ -252,7 +252,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   const [offset, setOffset] = useState<PanState>({ x: 0, y: 0 })
   const [panning, setPanning] = useState(false)
   const [panStart, setPanStart] = useState<PanState | null>(null)
-  const [filters, setFilters] = useState<TodoFilters>({ tag: null, hideCompleted: false })
+  const [filters, setFilters] = useState<TodoFilters>({ tag: null, hideCompleted: false, dateFilter: 'all' })
   const [showPane, setShowPane] = useState(true)
 
   // Save to localStorage whenever stickies change
@@ -510,6 +510,19 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
   const endDrag = useCallback(() => {
     if (drag) {
+      // Check if any sticky actually moved (click vs drag detection)
+      const hasMovement = drag.stickies.some(ds => {
+        const current = stickies.find(s => s.id === ds.id)
+        if (!current) return false
+        return current.x !== ds.origX || current.y !== ds.origY
+      })
+
+      // If no movement, just clear drag state and keep selection
+      if (!hasMovement) {
+        setDrag(null)
+        return
+      }
+
       // Get current positions of all dragged stickies
       const movedStickies = drag.stickies.map(ds => {
         const sticky = stickies.find(s => s.id === ds.id)!

@@ -19,7 +19,15 @@ export interface TodoWithContext extends ParsedTodo {
   date: string
 }
 
+export type DateFilterValue =
+  | 'all'
+  | 'today'
+  | 'yesterday'
+  | 'week'
+  | { start: string; end: string }
+
 export interface TodoFilters {
   tag: string | null
   hideCompleted: boolean
+  dateFilter: DateFilterValue
 }

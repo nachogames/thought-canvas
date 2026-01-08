@@ -9,7 +9,7 @@ import {
   useState,
   useCallback,
 } from 'react'
-import { CheckSquare, List, Heading1, Heading2, Type } from 'lucide-react'
+import { CheckSquare, List, Type } from 'lucide-react'
 import type { Editor, Range } from '@tiptap/core'
 
 // Command definitions
@@ -29,24 +29,6 @@ const COMMANDS: CommandItem[] = [
     icon: Type,
     command: ({ editor, range }) => {
       editor.chain().focus().deleteRange(range).setParagraph().run()
-    },
-  },
-  {
-    id: 'heading1',
-    label: 'Heading 1',
-    description: 'Large section heading',
-    icon: Heading1,
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setHeading({ level: 1 }).run()
-    },
-  },
-  {
-    id: 'heading2',
-    label: 'Heading 2',
-    description: 'Medium section heading',
-    icon: Heading2,
-    command: ({ editor, range }) => {
-      editor.chain().focus().deleteRange(range).setHeading({ level: 2 }).run()
     },
   },
   {
@@ -118,29 +100,37 @@ const CommandList = forwardRef<CommandListRef, CommandListProps>(
 
     if (items.length === 0) {
       return (
-        <div className="slash-menu-empty">
+        <div className="p-3 text-sm text-gray-500 dark:text-gray-400">
           No results
         </div>
       )
     }
 
     return (
-      <div className="slash-menu">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-1.5 min-w-[220px]">
         {items.map((item, index) => {
           const Icon = item.icon
+          const isSelected = index === selectedIndex
           return (
             <button
               key={item.id}
-              className={`slash-menu-item ${index === selectedIndex ? 'is-selected' : ''}`}
+              className={`
+                w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left
+                transition-colors duration-100
+                ${isSelected
+                  ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }
+              `}
               onClick={() => selectItem(index)}
               onMouseEnter={() => setSelectedIndex(index)}
             >
-              <div className="slash-menu-item-icon">
+              <div className={`flex-shrink-0 ${isSelected ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-400 dark:text-gray-500'}`}>
                 <Icon size={18} />
               </div>
-              <div className="slash-menu-item-content">
-                <div className="slash-menu-item-label">{item.label}</div>
-                <div className="slash-menu-item-description">{item.description}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">{item.label}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{item.description}</div>
               </div>
             </button>
           )
@@ -160,6 +150,10 @@ const suggestion: Omit<SuggestionOptions<CommandItem>, 'editor'> = {
       item.label.toLowerCase().includes(query.toLowerCase()) ||
       item.description.toLowerCase().includes(query.toLowerCase())
     )
+  },
+  command: ({ editor, range, props }) => {
+    // Execute the selected command's action
+    props.command({ editor, range })
   },
   render: () => {
     let component: ReactRenderer<CommandListRef> | null = null

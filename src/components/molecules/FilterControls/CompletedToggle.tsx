@@ -1,4 +1,4 @@
-import { Text } from '@/components/atoms/Typography'
+import { Toggle } from '@/components/atoms/Toggle'
 
 interface CompletedToggleProps {
   checked: boolean
@@ -7,16 +7,10 @@ interface CompletedToggleProps {
 
 export function CompletedToggle({ checked, onChange }: CompletedToggleProps) {
   return (
-    <label className="flex items-center cursor-pointer select-none">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        className="w-4 h-4 mr-2.5 accent-accent"
-      />
-      <Text variant="secondary" size="base">
-        Hide completed
-      </Text>
-    </label>
+    <Toggle
+      checked={checked}
+      onChange={onChange}
+      label="Hide completed"
+    />
   )
 }

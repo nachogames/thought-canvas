@@ -116,8 +116,8 @@ export function Canvas({ children }: CanvasProps) {
 
   const handleCanvasDoubleClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement
-    // Only create sticky if not clicking on an existing sticky
-    if (!target.closest('[data-sticky]')) {
+    // Only create sticky if not clicking on an existing sticky or group header
+    if (!target.closest('[data-sticky]') && !target.closest('[data-group-header]')) {
       createSticky(e.clientX, e.clientY)
     }
   }
