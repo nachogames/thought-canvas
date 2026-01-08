@@ -5,9 +5,12 @@ import { TodoPane } from '@/components/organisms/TodoPane'
 import { Toolbar } from '@/components/organisms/Toolbar'
 
 export function CanvasLayout() {
-  const { stickies, toggleTodo, panToSticky, filters, setFilters, showPane, setShowPane } = useStickies()
+  const { stickies, toggleTodo, panToSticky, filters, setFilters, showTasks, taskViewMode } = useStickies()
   const [paneWidth, setPaneWidth] = useState(320)
   const [isResizing, setIsResizing] = useState(false)
+
+  // Show panel when tasks visible AND in panel mode
+  const showPanel = showTasks && taskViewMode === 'panel'
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -35,10 +38,10 @@ export function CanvasLayout() {
   return (
     <div className="h-screen flex bg-bg">
       <Canvas>
-        <Toolbar showPane={showPane} onTogglePane={() => setShowPane(p => !p)} />
+        <Toolbar />
       </Canvas>
 
-      {showPane && (
+      {showPanel && (
         <>
           {/* Resize handle */}
           <div

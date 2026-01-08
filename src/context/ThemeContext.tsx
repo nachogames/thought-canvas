@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { loadConfig, saveConfig } from '@/utils'
 
 type Theme = 'dark' | 'light'
 
@@ -15,7 +16,7 @@ interface ThemeProviderProps {
 }
 
 export function ThemeProvider({ children }: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>('dark')
+  const [theme, setTheme] = useState<Theme>(() => loadConfig().theme)
 
   useEffect(() => {
     // Set data-theme attribute for CSS custom properties
@@ -27,6 +28,9 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
     } else {
       document.documentElement.classList.remove('dark')
     }
+
+    // Persist to shared config
+    saveConfig({ theme })
   }, [theme])
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')

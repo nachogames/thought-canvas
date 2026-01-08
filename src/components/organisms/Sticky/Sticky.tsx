@@ -1,8 +1,9 @@
-import { useRef, useState, useLayoutEffect, useCallback, useEffect } from 'react'
+import { useRef, useState, useLayoutEffect, useCallback, useEffect, useMemo } from 'react'
 import { Trash2, Palette, Check } from 'lucide-react'
-import { STICKY_WIDTH, MIN_STICKY_HEIGHT, STICKY_GAP, GRID_SIZE, STICKY_COLORS, STICKY_COLOR_ORDER } from '@/constants'
+import { STICKY_WIDTH, TASK_STICKY_WIDTH, MIN_STICKY_HEIGHT, MIN_TASK_STICKY_HEIGHT, STICKY_GAP, GRID_SIZE, STICKY_COLORS, STICKY_COLOR_ORDER } from '@/constants'
 import { TiptapEditor } from '@/components/molecules/TiptapEditor'
 import { getStickyHeight } from '@/utils/textMeasurement'
+import { parseContent } from '@/utils/parseContent'
 import type { Sticky as StickyType, StickyColor } from '@/types'
 
 // Debug: show collision boxes (set to true to visualize)
@@ -17,6 +18,12 @@ interface StickyProps {
   onSelect: (id: string, addToSelection?: boolean) => void
   isEditing: boolean
   onSetEditing: (id: string | null) => void
+  // Task mode props
+  variant?: 'note' | 'task'
+  onToggleTodo?: (id: string) => void
+  onFocusSource?: (id: string) => void
+  // Direct todo data (avoids parsing content in task mode)
+  todoData?: { checked: boolean; priority: number; tags: Set<string> }
 }
 
 export function Sticky({
@@ -27,7 +34,11 @@ export function Sticky({
   isSelected,
   onSelect,
   isEditing,
-  onSetEditing
+  onSetEditing,
+  variant = 'note',
+  onToggleTodo,
+  onFocusSource,
+  todoData,
 }: StickyProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -35,6 +46,45 @@ export function Sticky({
   const [contentHeight, setContentHeight] = useState(0)
   const [clickCoords, setClickCoords] = useState<{ x: number; y: number } | null>(null)
   const [showColorPicker, setShowColorPicker] = useState(false)
+
+  const isTaskMode = variant === 'task'
+  const width = isTaskMode ? TASK_STICKY_WIDTH : STICKY_WIDTH
+  const minHeight = isTaskMode ? MIN_TASK_STICKY_HEIGHT : MIN_STICKY_HEIGHT
+
+  // Show checkbox for task stickies (isTask flag) even without variant="task"
+  const showCheckbox = sticky.isTask === true || isTaskMode
+
+  // Parse content for task mode to get todo info
+  const parsedContent = useMemo(() => {
+    if (!showCheckbox) return null
+    return parseContent(sticky.content)
+  }, [showCheckbox, sticky.content])
+
+  // Extract todo info for task stickies
+  const todoInfo = useMemo(() => {
+    // If todoData is provided directly, use it
+    if (todoData) {
+      return todoData
+    }
+    // Use stored task state from sticky (for task overlay stickies)
+    if (sticky.isTask) {
+      return {
+        checked: sticky.taskChecked ?? false,
+        priority: sticky.taskPriority ?? 0,
+        tags: new Set(sticky.taskTags ?? [])
+      }
+    }
+    // Fall back to parsing content
+    if (!parsedContent || parsedContent.todos.length === 0) {
+      return { checked: false, priority: 0, tags: new Set<string>() }
+    }
+    const todo = parsedContent.todos[0]
+    return {
+      checked: todo.checked,
+      priority: todo.priority || parsedContent.priority,
+      tags: new Set([...todo.tags, ...parsedContent.tags])
+    }
+  }, [parsedContent, todoData, sticky.isTask, sticky.taskChecked, sticky.taskPriority, sticky.taskTags])
 
   // Close color picker when clicking outside
   useEffect(() => {
@@ -57,7 +107,8 @@ export function Sticky({
       setContentHeight(newContentHeight)
 
       // Calculate total height same as render, snapped to grid
-      const rawHeight = Math.max(MIN_STICKY_HEIGHT, newContentHeight + 20 + 32)
+      const headerHeight = isTaskMode ? 16 : 20
+      const rawHeight = Math.max(minHeight, newContentHeight + headerHeight + 32)
       const snappedHeight = Math.ceil(rawHeight / GRID_SIZE) * GRID_SIZE
 
       // Report measured height if different (for collision detection)
@@ -65,7 +116,7 @@ export function Sticky({
         onUpdate(sticky.id, { measuredHeight: snappedHeight })
       }
     }
-  }, [sticky.content, sticky.id, sticky.measuredHeight, onUpdate])
+  }, [sticky.content, sticky.id, sticky.measuredHeight, onUpdate, isTaskMode, minHeight])
 
   const handleContentChange = useCallback((html: string) => {
     onUpdate(sticky.id, { content: html })
@@ -113,10 +164,25 @@ export function Sticky({
     setShowColorPicker(false)
   }, [sticky.id, onUpdate])
 
+  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onToggleTodo) {
+      onToggleTodo(sticky.id)
+    }
+  }, [sticky.id, onToggleTodo])
+
+  const handleFocusSource = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (onFocusSource && sticky.sourceId) {
+      onFocusSource(sticky.sourceId)
+    }
+  }, [sticky.sourceId, onFocusSource])
+
   // Calculate height based on actual content, snapped to grid for consistent spacing
+  const headerHeight = isTaskMode ? 16 : 20
   const rawHeight = Math.max(
-    MIN_STICKY_HEIGHT,
-    contentHeight + 20 + 32 // header + content padding (16 top + 16 bottom)
+    minHeight,
+    contentHeight + headerHeight + 32 // header + content padding (16 top + 16 bottom)
   )
   const calculatedHeight = Math.ceil(rawHeight / GRID_SIZE) * GRID_SIZE
 
@@ -136,6 +202,9 @@ export function Sticky({
   // Height the collision algorithm calculates (from text content)
   const collisionHeight = getStickyHeight(sticky.content, sticky.measuredHeight)
 
+  // Opacity for completed tasks
+  const completedOpacity = showCheckbox && todoInfo.checked ? 'opacity-50' : ''
+
   return (
     <>
       {/* Debug: Shows collision zones - cyan boxes should just TOUCH, not overlap */}
@@ -147,7 +216,7 @@ export function Sticky({
             style={{
               left: sticky.x - STICKY_GAP / 2,
               top: sticky.y - STICKY_GAP / 2,
-              width: STICKY_WIDTH + STICKY_GAP,
+              width: width + STICKY_GAP,
               height: collisionHeight + STICKY_GAP,
               border: '2px solid rgba(0, 255, 255, 0.5)',
               borderRadius: 12,
@@ -158,7 +227,7 @@ export function Sticky({
           <div
             className="absolute pointer-events-none text-xs font-mono"
             style={{
-              left: sticky.x + STICKY_WIDTH + 4,
+              left: sticky.x + width + 4,
               top: sticky.y,
               color: collisionHeight !== calculatedHeight ? 'red' : 'lime',
               zIndex: 9999,
@@ -180,12 +249,13 @@ export function Sticky({
           border border-gray-200 dark:border-gray-700
           transition-shadow duration-200
           ${shadowClass}
+          ${completedOpacity}
         `}
         style={{
           left: sticky.x,
           top: sticky.y,
-          width: STICKY_WIDTH,
-          minHeight: MIN_STICKY_HEIGHT,
+          width: width,
+          minHeight: minHeight,
           height: calculatedHeight,
           zIndex: isEditing ? 9999 : isSelected ? 100 : sticky.zIndex || 1,
         }}
@@ -194,72 +264,107 @@ export function Sticky({
       {/* Header - drag handle */}
       <div
         className={`
-          h-5 w-full flex items-center justify-between px-2
+          ${isTaskMode ? 'h-4' : 'h-5'} w-full flex items-center justify-between px-2
           cursor-grab active:cursor-grabbing
           group
           ${headerClass}
         `}
         onMouseDown={handleHeaderMouseDown}
       >
-        {/* Color picker button */}
-        <div className="relative" ref={colorPickerRef}>
+        {/* Left side: Checkbox (for task stickies) or Color picker (for regular notes) */}
+        {showCheckbox ? (
+          <div className="flex items-center gap-1.5">
+            {/* Checkbox */}
+            <input
+              type="checkbox"
+              checked={todoInfo.checked}
+              onChange={() => {}}
+              onClick={handleCheckboxClick}
+              onMouseDown={e => e.stopPropagation()}
+              className="w-3.5 h-3.5 accent-[var(--color-accent)] cursor-pointer rounded"
+            />
+            {/* Priority indicator */}
+            {todoInfo.priority >= 3 && (
+              <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+            )}
+            {todoInfo.priority === 2 && (
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+            )}
+            {todoInfo.priority === 1 && (
+              <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
+            )}
+          </div>
+        ) : (
+          <div className="relative" ref={colorPickerRef}>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                setShowColorPicker(!showColorPicker)
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-opacity"
+            >
+              <Palette size={12} />
+            </button>
+
+            {/* Color picker dropdown */}
+            {showColorPicker && (
+              <div
+                className="absolute left-0 top-5 z-50 flex gap-1 p-1.5 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                {STICKY_COLOR_ORDER.map((color) => (
+                  <button
+                    key={color}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      handleColorSelect(color)
+                    }}
+                    className={`
+                      w-5 h-5 rounded-full border transition-transform hover:scale-110
+                      ${STICKY_COLORS[color].swatch}
+                      ${currentColor === color ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}
+                    `}
+                    title={color.charAt(0).toUpperCase() + color.slice(1)}
+                  >
+                    {currentColor === color && (
+                      <Check size={12} className="mx-auto text-gray-600 dark:text-gray-300" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Right side: Source link (for task stickies with source) or Delete button */}
+        {showCheckbox && sticky.sourceId ? (
+          <button
+            onClick={handleFocusSource}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-accent text-xs transition-opacity"
+            title="Go to source"
+          >
+            ↗
+          </button>
+        ) : (
           <button
             onClick={(e) => {
               e.stopPropagation()
-              setShowColorPicker(!showColorPicker)
+              onDelete(sticky.id)
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-opacity"
+            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 transition-opacity"
           >
-            <Palette size={12} />
+            <Trash2 size={12} />
           </button>
-
-          {/* Color picker dropdown */}
-          {showColorPicker && (
-            <div
-              className="absolute left-0 top-5 z-50 flex gap-1 p-1.5 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700"
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              {STICKY_COLOR_ORDER.map((color) => (
-                <button
-                  key={color}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleColorSelect(color)
-                  }}
-                  className={`
-                    w-5 h-5 rounded-full border transition-transform hover:scale-110
-                    ${STICKY_COLORS[color].swatch}
-                    ${currentColor === color ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}
-                  `}
-                  title={color.charAt(0).toUpperCase() + color.slice(1)}
-                >
-                  {currentColor === color && (
-                    <Check size={12} className="mx-auto text-gray-600 dark:text-gray-300" />
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Delete button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete(sticky.id)
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 transition-opacity"
-        >
-          <Trash2 size={12} />
-        </button>
+        )}
       </div>
 
       {/* Content */}
       <div
-        className="px-4 pb-4 cursor-text"
-        style={{ minHeight: MIN_STICKY_HEIGHT - 20 - 16 }}
+        className={`${isTaskMode ? 'px-3 pb-3' : 'px-4 pb-4'} cursor-text`}
+        style={{ minHeight: minHeight - headerHeight - 16 }}
         onMouseDown={handleContentMouseDown}
         onClick={handleContentClick}
       >
@@ -271,7 +376,7 @@ export function Sticky({
             content={sticky.content}
             onChange={handleContentChange}
             onBlur={handleBlur}
-            placeholder="Type here..."
+            placeholder={isTaskMode ? "Task..." : "Type here..."}
             autoFocus={isEditing}
             editable={isEditing}
             focusCoords={clickCoords}

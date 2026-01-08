@@ -8,6 +8,8 @@ import { Sticky } from '../Sticky'
 import { DayGroup } from '../DayGroup'
 import type { DayGroup as DayGroupType } from '@/types'
 
+const TASKS_GROUP_DATE = '__tasks__'
+
 interface CanvasProps {
   children?: ReactNode
 }
@@ -30,18 +32,49 @@ export function Canvas({ children }: CanvasProps) {
     startGroupDrag,
     updateDrag,
     endDrag,
+    arrangeGroup,
     startPan,
     updatePan,
     endPan,
     setOffset,
-    getStickyHeight
+    getStickyHeight,
+    showTasks,
+    taskViewMode,
+    setShowTasks,
+    toggleTaskTodo,
+    updateTaskStickyContent,
+    panToSticky,
+    filters,
+    setFilters,
   } = useStickies()
 
-  // Calculate day groups with bounds
+  // Check if overlay mode is active
+  const showOverlay = showTasks && taskViewMode === 'overlay'
+
+  // Separate task stickies from regular stickies
+  // Regular stickies (not tasks)
+  const regularStickies = useMemo(() =>
+    stickies.filter(s => s.date !== TASKS_GROUP_DATE),
+    [stickies]
+  )
+
+  // Task stickies - already filtered by the sync effect based on current filters
+  const taskStickies = useMemo(() =>
+    stickies.filter(s => s.date === TASKS_GROUP_DATE),
+    [stickies]
+  )
+
+  // Task count for header (shows visible counts since taskStickies is pre-filtered)
+  const taskCount = useMemo(() => ({
+    completed: taskStickies.filter(s => s.taskChecked).length,
+    total: taskStickies.length
+  }), [taskStickies])
+
+  // Calculate day groups with bounds (regular stickies only)
   const dayGroups = useMemo(() => {
     const groups: Record<string, DayGroupType> = {}
 
-    stickies.forEach(s => {
+    regularStickies.forEach(s => {
       if (!groups[s.date]) {
         groups[s.date] = { stickies: [], bounds: null }
       }
@@ -80,7 +113,63 @@ export function Canvas({ children }: CanvasProps) {
     })
 
     return groups
-  }, [stickies, getStickyHeight])
+  }, [regularStickies, getStickyHeight])
+
+  // Calculate tasks group bounds (taskStickies is already filtered by sync effect)
+  const tasksGroupBounds = useMemo(() => {
+    if (!showOverlay) return null
+
+    // If no visible task stickies, show empty group at a default position
+    if (taskStickies.length === 0) {
+      return {
+        x: 100,
+        y: 100,
+        width: STICKY_WIDTH,
+        height: 80
+      }
+    }
+
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+
+    taskStickies.forEach(s => {
+      const height = getStickyHeight(s.content, s.measuredHeight)
+      minX = Math.min(minX, s.x)
+      minY = Math.min(minY, s.y)
+      maxX = Math.max(maxX, s.x + STICKY_WIDTH)
+      maxY = Math.max(maxY, s.y + height)
+    })
+
+    // Snap bounds to grid
+    const snappedMinX = Math.floor(minX / GRID_SIZE) * GRID_SIZE
+    const snappedMinY = Math.floor(minY / GRID_SIZE) * GRID_SIZE
+    const snappedMaxX = Math.ceil(maxX / GRID_SIZE) * GRID_SIZE
+    const snappedMaxY = Math.ceil(maxY / GRID_SIZE) * GRID_SIZE
+
+    return {
+      x: snappedMinX,
+      y: snappedMinY,
+      width: snappedMaxX - snappedMinX,
+      height: snappedMaxY - snappedMinY
+    }
+  }, [showOverlay, taskStickies, getStickyHeight])
+
+  // Determine if we're dragging (for cursor and text selection)
+  const isDragging = drag !== null
+
+  // Disable text selection globally when dragging or panning
+  useEffect(() => {
+    if (isDragging || panning) {
+      document.body.classList.add('select-none')
+    } else {
+      document.body.classList.remove('select-none')
+    }
+    return () => {
+      document.body.classList.remove('select-none')
+    }
+  }, [isDragging, panning])
 
   // Mouse event handlers
   useEffect(() => {
@@ -154,9 +243,6 @@ export function Canvas({ children }: CanvasProps) {
     setOffset({ x: 0, y: 0 })
   }, [setOffset])
 
-  // Determine if we're dragging (for cursor and text selection)
-  const isDragging = drag !== null
-
   return (
     <div
       ref={canvasRef}
@@ -181,12 +267,29 @@ export function Canvas({ children }: CanvasProps) {
               date={date}
               bounds={group.bounds}
               onDragStart={(e) => startGroupDrag(date, e)}
+              onArrange={() => arrangeGroup(date)}
             />
           )
         )}
 
-        {/* Stickies */}
-        {stickies.map(sticky => (
+        {/* Tasks group (overlay mode) */}
+        {showOverlay && tasksGroupBounds && (
+          <DayGroup
+            key={TASKS_GROUP_DATE}
+            date={TASKS_GROUP_DATE}
+            bounds={tasksGroupBounds}
+            label="Tasks"
+            onDragStart={(e) => startGroupDrag(TASKS_GROUP_DATE, e)}
+            onArrange={() => arrangeGroup(TASKS_GROUP_DATE, new Set(taskStickies.map(s => s.id)))}
+            onClose={() => setShowTasks(false)}
+            filters={filters}
+            setFilters={setFilters}
+            taskCount={taskCount}
+          />
+        )}
+
+        {/* Regular stickies */}
+        {regularStickies.map(sticky => (
           <Sticky
             key={sticky.id}
             sticky={sticky}
@@ -199,19 +302,45 @@ export function Canvas({ children }: CanvasProps) {
             onSetEditing={setEditingId}
           />
         ))}
+
+        {/* Task stickies (overlay mode) */}
+        {showOverlay && taskStickies.map(sticky => (
+          <Sticky
+            key={sticky.id}
+            sticky={sticky}
+            onUpdate={(id, updates) => {
+              // Bidirectional sync: update source sticky when content changes
+              if (updates.content !== undefined) {
+                updateTaskStickyContent(id, updates.content)
+              } else {
+                updateSticky(id, updates)
+              }
+            }}
+            onDelete={deleteSticky}
+            onDragStart={startDrag}
+            isSelected={selectedIds.has(sticky.id)}
+            onSelect={selectSticky}
+            isEditing={editingId === sticky.id}
+            onSetEditing={setEditingId}
+            onToggleTodo={toggleTaskTodo}
+            onFocusSource={panToSticky}
+          />
+        ))}
       </div>
 
       {children}
 
-      {/* Recenter button */}
-      <IconButton
-        icon={Crosshair}
-        variant="ghost"
-        size="sm"
-        label="Recenter view"
-        onClick={handleRecenter}
-        className="absolute bottom-4 right-4 opacity-50 hover:opacity-100"
-      />
+      {/* Bottom controls */}
+      <div className="absolute bottom-4 right-4 flex gap-2">
+        <IconButton
+          icon={Crosshair}
+          variant="ghost"
+          size="sm"
+          label="Recenter view"
+          onClick={handleRecenter}
+          className="opacity-50 hover:opacity-100"
+        />
+      </div>
     </div>
   )
 }

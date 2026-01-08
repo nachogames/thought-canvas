@@ -31,3 +31,13 @@ export interface TodoFilters {
   hideCompleted: boolean
   dateFilter: DateFilterValue
 }
+
+export interface TasksGroupState {
+  position: { x: number; y: number }
+  expanded: boolean
+}
+
+export interface TaskCardPosition {
+  x: number
+  y: number
+}

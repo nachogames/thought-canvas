@@ -13,6 +13,7 @@ export const FONT_FAMILY = "'IBM Plex Sans', system-ui, -apple-system, sans-seri
 
 // Sticky dimensions - all must align with GRID_SIZE for consistent spacing
 export const STICKY_WIDTH = 256  // 16 * 16 = 256 (grid-aligned)
+export const TASK_STICKY_WIDTH = 200  // Smaller width for task cards
 export const STICKY_PADDING = 16  // Grid-aligned padding
 export const STICKY_GAP = 16     // Same as GRID_SIZE for consistent gaps
 
@@ -22,6 +23,7 @@ export const CONTENT_WIDTH = STICKY_WIDTH - STICKY_PADDING * 2  // 224px - actua
 // Minimum height: 2 lines of text + padding
 export const MIN_LINES = 2
 export const MIN_STICKY_HEIGHT = MIN_LINES * LINE_HEIGHT + STICKY_PADDING * 2  // 2 * 26 + 36 = 88
+export const MIN_TASK_STICKY_HEIGHT = 60  // Smaller min height for task cards
 
 // Group container - even 24px padding on all sides, label positioned above
 export const GROUP_PADDING = 24

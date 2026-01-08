@@ -7,13 +7,23 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
-import type { Sticky, DragState, PanState, TodoFilters, ThoughtCanvasExport, ImportMode } from '@/types'
+import type { Sticky, DragState, PanState, TodoFilters, ThoughtCanvasExport, ImportMode, TasksGroupState } from '@/types'
 import { GRID_SIZE, STICKY_WIDTH, STICKY_GAP, MIN_STICKY_HEIGHT, GROUP_PADDING } from '@/constants'
-import { getStickyHeight, resolveCollisions, createExportData, generateNewIds, offsetPositions } from '@/utils'
+import { getStickyHeight, resolveCollisions, createExportData, generateNewIds, offsetPositions, parseContent } from '@/utils'
 import type { GroupObstacle } from '@/utils/grid'
 
+import { loadConfig, saveConfig } from '@/utils'
+
 const STORAGE_KEY = 'thought-canvas-stickies'
+const TASKS_GROUP_KEY = 'thought-canvas-tasks-group'
+const TASK_POSITIONS_KEY = 'thought-canvas-task-positions'
 const MAX_HISTORY = 50
+const TASKS_GROUP_DATE = '__tasks__'
+
+const DEFAULT_TASKS_GROUP: TasksGroupState = {
+  position: { x: 50, y: 50 },
+  expanded: true
+}
 
 interface StickiesContextValue {
   // State
@@ -25,7 +35,8 @@ interface StickiesContextValue {
   panning: boolean
   panStart: PanState | null
   filters: TodoFilters
-  showPane: boolean
+  showTasks: boolean
+  taskViewMode: 'panel' | 'overlay'
   canUndo: boolean
   canRedo: boolean
 
@@ -43,6 +54,7 @@ interface StickiesContextValue {
   startGroupDrag: (date: string, e: React.MouseEvent) => void
   updateDrag: (e: MouseEvent) => void
   endDrag: () => void
+  arrangeGroup: (date: string, visibleIds?: Set<string>) => void
 
   // Pan operations
   startPan: (e: React.MouseEvent) => void
@@ -52,6 +64,8 @@ interface StickiesContextValue {
 
   // Todo operations
   toggleTodo: (stickyId: string, lineIndex: number) => void
+  toggleTaskTodo: (taskStickyId: string) => void
+  updateTaskStickyContent: (taskStickyId: string, content: string) => void
   panToSticky: (stickyId: string) => void
 
   // History operations
@@ -60,7 +74,18 @@ interface StickiesContextValue {
 
   // Filters
   setFilters: React.Dispatch<React.SetStateAction<TodoFilters>>
-  setShowPane: React.Dispatch<React.SetStateAction<boolean>>
+
+  // Tasks View
+  setShowTasks: React.Dispatch<React.SetStateAction<boolean>>
+  setTaskViewMode: React.Dispatch<React.SetStateAction<'panel' | 'overlay'>>
+
+  // Tasks Group (for overlay mode)
+  tasksGroup: TasksGroupState
+  taskCardPositions: Record<string, { x: number; y: number }>
+  updateTasksGroupPosition: (x: number, y: number) => void
+  setTasksGroupExpanded: (expanded: boolean) => void
+  updateTaskCardPosition: (todoKey: string, x: number, y: number) => void
+  createTaskInGroup: (x: number, y: number) => void
 
   // Helpers
   getStickyHeight: (content: string, measuredHeight?: number) => number
@@ -77,6 +102,9 @@ const snap = (v: number) => Math.round(v / GRID_SIZE) * GRID_SIZE
 
 // Half gap for symmetric expansion (10px each side = 20px total gap)
 const HALF_GAP = STICKY_GAP / 2
+
+// Label height above group box (-top-8 = 32px)
+const GROUP_LABEL_HEIGHT = 32
 
 // Get sticky rect expanded by half gap on all sides
 // When two expanded rects just touch, actual gap = 10 + 10 = 20px
@@ -252,17 +280,76 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   const [offset, setOffset] = useState<PanState>({ x: 0, y: 0 })
   const [panning, setPanning] = useState(false)
   const [panStart, setPanStart] = useState<PanState | null>(null)
-  const [filters, setFilters] = useState<TodoFilters>({ tag: null, hideCompleted: false, dateFilter: 'all' })
-  const [showPane, setShowPane] = useState(true)
+  // Load config from shared localStorage key
+  const initialConfig = loadConfig()
+  const [filters, setFilters] = useState<TodoFilters>({
+    tag: initialConfig.filters.tag,
+    hideCompleted: initialConfig.filters.hideCompleted,
+    dateFilter: initialConfig.filters.dateFilter as TodoFilters['dateFilter']
+  })
+  const [showTasks, setShowTasks] = useState(initialConfig.showTasks)
+  const wasOverlayOpenRef = useRef(false)
+  const [taskViewMode, setTaskViewMode] = useState<'panel' | 'overlay'>(initialConfig.taskViewMode)
+  const [tasksGroup, setTasksGroup] = useState<TasksGroupState>(() => {
+    try {
+      const stored = localStorage.getItem(TASKS_GROUP_KEY)
+      if (stored) return JSON.parse(stored)
+    } catch (e) {
+      console.error('Failed to load tasks group state:', e)
+    }
+    return DEFAULT_TASKS_GROUP
+  })
+  const [taskCardPositions, setTaskCardPositions] = useState<Record<string, { x: number; y: number }>>(() => {
+    try {
+      const stored = localStorage.getItem(TASK_POSITIONS_KEY)
+      if (stored) return JSON.parse(stored)
+    } catch (e) {
+      console.error('Failed to load task card positions:', e)
+    }
+    return {}
+  })
 
-  // Save to localStorage whenever stickies change
+  // Save to localStorage whenever stickies change (excluding task stickies)
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stickies))
+      // Filter out task stickies - they're generated from todos, not persisted
+      const regularStickies = stickies.filter(s => s.date !== TASKS_GROUP_DATE)
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(regularStickies))
     } catch (e) {
       console.error('Failed to save stickies to localStorage:', e)
     }
   }, [stickies])
+
+  // Save tasks group state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(TASKS_GROUP_KEY, JSON.stringify(tasksGroup))
+    } catch (e) {
+      console.error('Failed to save tasks group state:', e)
+    }
+  }, [tasksGroup])
+
+  // Save task card positions to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(TASK_POSITIONS_KEY, JSON.stringify(taskCardPositions))
+    } catch (e) {
+      console.error('Failed to save task card positions:', e)
+    }
+  }, [taskCardPositions])
+
+  // Save config to shared localStorage key (theme is handled by ThemeContext)
+  useEffect(() => {
+    saveConfig({
+      showTasks,
+      taskViewMode,
+      filters: {
+        tag: filters.tag,
+        hideCompleted: filters.hideCompleted,
+        dateFilter: typeof filters.dateFilter === 'string' ? filters.dateFilter : 'all'
+      }
+    })
+  }, [showTasks, taskViewMode, filters])
 
   // Push to history stack (debounced for drag operations)
   const pushHistory = useCallback((newStickies: Sticky[]) => {
@@ -353,6 +440,146 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [undo, redo, editingId, selectedIds, stickies, pushHistory])
+
+  // Sync task stickies from todos in regular stickies (only in overlay mode)
+  useEffect(() => {
+    if (!showTasks || taskViewMode !== 'overlay') return
+    if (drag) return // Don't sync while dragging
+
+    // Get regular stickies (not task stickies)
+    const regularStickies = stickies.filter(s => s.date !== TASKS_GROUP_DATE)
+    const existingTaskStickies = stickies.filter(s => s.date === TASKS_GROUP_DATE)
+
+    // Parse todos from regular stickies and build task stickies with collision-free positioning
+    const newTaskStickies: Sticky[] = []
+
+    // Helper to find non-overlapping position for a task sticky
+    const findTaskPosition = (content: string, placedStickies: Sticky[]): { x: number; y: number } => {
+      let posX = 0
+      let posY = 0
+
+      // Get the height of the new sticky based on its content
+      const newHeight = getStickyHeight(content)
+
+      const overlaps = () => {
+        const newRect = getExpandedRect(posX, posY, STICKY_WIDTH, newHeight)
+        return placedStickies.some(s => {
+          const h = getStickyHeight(s.content, s.measuredHeight)
+          const sr = getExpandedRect(s.x, s.y, STICKY_WIDTH, h)
+          return !(newRect.r <= sr.l || newRect.l >= sr.r || newRect.b <= sr.t || newRect.t >= sr.b)
+        })
+      }
+
+      // Find max Y of stickies in each column to know where to place next
+      let iter = 0
+      while (overlaps() && iter++ < 50) {
+        // Move right first, then down
+        posX = snap(posX + STICKY_WIDTH + STICKY_GAP)
+        if (posX > (STICKY_WIDTH + STICKY_GAP) * 2) {
+          posX = 0
+          // Find the lowest point of all placed stickies to start new row
+          const maxY = placedStickies.reduce((max, s) => {
+            const h = getStickyHeight(s.content, s.measuredHeight)
+            return Math.max(max, s.y + h)
+          }, 0)
+          posY = snap(maxY + STICKY_GAP)
+        }
+      }
+
+      return { x: posX, y: posY }
+    }
+
+    // Helper to check if a sticky's date matches the filter
+    const matchesDateFilter = (stickyDate: string): boolean => {
+      if (filters.dateFilter === 'all') return true
+      const today = new Date()
+      today.setHours(0, 0, 0, 0)
+      const [year, month, day] = stickyDate.split('-').map(Number)
+      const date = new Date(year, month - 1, day)
+
+      if (filters.dateFilter === 'today') return date.getTime() === today.getTime()
+      if (filters.dateFilter === 'yesterday') {
+        const yesterday = new Date(today)
+        yesterday.setDate(yesterday.getDate() - 1)
+        return date.getTime() === yesterday.getTime()
+      }
+      if (filters.dateFilter === 'week') {
+        const weekAgo = new Date(today)
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        return date >= weekAgo && date <= today
+      }
+      return true
+    }
+
+    regularStickies.forEach(sticky => {
+      // Apply date filter at the sticky level
+      if (!matchesDateFilter(sticky.date)) return
+
+      const { todos } = parseContent(sticky.content)
+      todos.forEach((todo, lineIndex) => {
+        if (!todo.cleanText) return
+        // Apply hideCompleted filter
+        if (filters.hideCompleted && todo.checked) return
+
+        const taskId = `task-${sticky.id}-${lineIndex}`
+        const existingTask = existingTaskStickies.find(t => t.id === taskId)
+        const storedPos = taskCardPositions[`${sticky.id}-${lineIndex}`]
+
+        let x: number, y: number
+
+        if (existingTask) {
+          // Keep existing position
+          x = existingTask.x
+          y = existingTask.y
+        } else if (storedPos) {
+          // Use stored position
+          x = storedPos.x
+          y = storedPos.y
+        } else {
+          // Find non-overlapping position based on content
+          const taskContent = `<p>${todo.cleanText}</p>`
+          const pos = findTaskPosition(taskContent, newTaskStickies)
+          x = pos.x
+          y = pos.y
+        }
+
+        newTaskStickies.push({
+          id: taskId,
+          content: `<p>${todo.cleanText}</p>`,
+          x,
+          y,
+          date: TASKS_GROUP_DATE,
+          zIndex: 1,
+          isTask: true,
+          sourceId: sticky.id,
+          sourceLineIndex: lineIndex,
+          taskChecked: todo.checked,
+          taskPriority: todo.priority,
+          taskTags: [...todo.tags],
+        })
+      })
+    })
+
+    // Only update if task stickies changed
+    const existingIds = new Set(existingTaskStickies.map(s => s.id))
+    const newIds = new Set(newTaskStickies.map(s => s.id))
+    const hasChanges =
+      existingTaskStickies.length !== newTaskStickies.length ||
+      [...existingIds].some(id => !newIds.has(id)) ||
+      [...newIds].some(id => !existingIds.has(id)) ||
+      existingTaskStickies.some(existing => {
+        const newTask = newTaskStickies.find(t => t.id === existing.id)
+        return newTask && (
+          newTask.content !== existing.content ||
+          newTask.taskChecked !== existing.taskChecked
+        )
+      })
+
+    if (hasChanges) {
+      // Replace task stickies while keeping regular stickies unchanged
+      setStickies([...regularStickies, ...newTaskStickies])
+    }
+  }, [showTasks, taskViewMode, stickies, taskCardPositions, drag, filters])
 
   // Sticky operations
   const createSticky = useCallback((x: number, y: number) => {
@@ -459,9 +686,8 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   const startGroupDrag = useCallback((date: string, e: React.MouseEvent) => {
     // Find all stickies with this date
     const groupStickies = stickies.filter(s => s.date === date)
-    if (groupStickies.length === 0) return
 
-    // Select all stickies in the group
+    // Select all stickies in the group (or clear if empty)
     setSelectedIds(new Set(groupStickies.map(s => s.id)))
 
     // Capture original positions
@@ -471,13 +697,159 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       origY: s.y
     }))
 
+    // Set drag state even for empty groups (prevents text selection, shows drag cursor)
     setDrag({
-      leaderId: groupStickies[0].id,
+      leaderId: groupStickies[0]?.id ?? '',
       startX: e.clientX,
       startY: e.clientY,
       stickies: draggedStickies
     })
   }, [stickies])
+
+  // Compact all stickies in a group - slide each card towards top-left with minimum movement
+  // Optional visibleIds param: if provided, only arrange those IDs (for filtered views)
+  const arrangeGroup = useCallback((date: string, visibleIds?: Set<string>) => {
+    let groupStickies = stickies.filter(s => s.date === date)
+    // If visibleIds provided, only arrange those stickies
+    if (visibleIds) {
+      groupStickies = groupStickies.filter(s => visibleIds.has(s.id))
+    }
+    if (groupStickies.length <= 1) return
+
+    // Create working copy with heights
+    const cards = groupStickies.map(s => ({
+      id: s.id,
+      x: s.x,
+      y: s.y,
+      h: getStickyHeight(s.content, s.measuredHeight)
+    }))
+
+    // Find anchor point (top-left corner)
+    const anchorX = Math.min(...cards.map(c => c.x))
+    const anchorY = Math.min(...cards.map(c => c.y))
+
+    // Iteratively slide cards towards anchor until nothing moves
+    let moved = true
+    let iterations = 0
+    const maxIterations = 100
+
+    while (moved && iterations < maxIterations) {
+      moved = false
+      iterations++
+
+      for (const card of cards) {
+        // Try to move left - find the blocking X
+        let targetX = anchorX
+        for (const other of cards) {
+          if (other.id === card.id) continue
+
+          // Does this card overlap vertically with other?
+          const vertOverlap = !(card.y + card.h + STICKY_GAP <= other.y ||
+                                other.y + other.h + STICKY_GAP <= card.y)
+
+          if (vertOverlap && other.x < card.x) {
+            // Other card is to the left and overlaps vertically - it blocks us
+            targetX = Math.max(targetX, snap(other.x + STICKY_WIDTH + STICKY_GAP))
+          }
+        }
+
+        // Try to move up - find the blocking Y
+        let targetY = anchorY
+        for (const other of cards) {
+          if (other.id === card.id) continue
+
+          // Does this card overlap horizontally with other?
+          const horzOverlap = !(card.x + STICKY_WIDTH + STICKY_GAP <= other.x ||
+                                other.x + STICKY_WIDTH + STICKY_GAP <= card.x)
+
+          if (horzOverlap && other.y < card.y) {
+            // Other card is above and overlaps horizontally - it blocks us
+            targetY = Math.max(targetY, snap(other.y + other.h + STICKY_GAP))
+          }
+        }
+
+        // Only move towards anchor (don't move away)
+        const newX = Math.min(card.x, targetX)
+        const newY = Math.min(card.y, targetY)
+
+        // Apply movement if changed
+        if (newX !== card.x || newY !== card.y) {
+          // But make sure new position doesn't overlap anything
+          const wouldOverlap = cards.some(other => {
+            if (other.id === card.id) return false
+            const cardRect = getExpandedRect(newX, newY, STICKY_WIDTH, card.h)
+            const otherRect = getExpandedRect(other.x, other.y, STICKY_WIDTH, other.h)
+            return !(cardRect.r <= otherRect.l || otherRect.r <= cardRect.l ||
+                     cardRect.b <= otherRect.t || otherRect.b <= cardRect.t)
+          })
+
+          if (!wouldOverlap) {
+            card.x = newX
+            card.y = newY
+            moved = true
+          }
+        }
+      }
+    }
+
+    // Update stickies with new positions
+    const newStickies = stickies.map(s => {
+      const c = cards.find(c => c.id === s.id)
+      return c ? { ...s, x: c.x, y: c.y } : s
+    })
+
+    pushHistory(newStickies)
+    setStickies(newStickies)
+  }, [stickies, pushHistory])
+
+  // Auto-arrange task stickies when overlay first opens
+  useEffect(() => {
+    const isOverlayOpen = showTasks && taskViewMode === 'overlay'
+    const wasOpen = wasOverlayOpenRef.current
+    wasOverlayOpenRef.current = isOverlayOpen // Update ref first
+
+    if (isOverlayOpen && !wasOpen) {
+      // Overlay just opened - arrange after a short delay to let sync complete
+      const timer = setTimeout(() => {
+        // Get filtered task sticky IDs
+        const taskStickies = stickies.filter(s => s.date === TASKS_GROUP_DATE)
+        const regularStickies = stickies.filter(s => s.date !== TASKS_GROUP_DATE)
+
+        const filteredIds = new Set(
+          taskStickies
+            .filter(s => {
+              if (filters.hideCompleted && s.taskChecked) return false
+              if (filters.dateFilter !== 'all') {
+                const sourceSticky = regularStickies.find(r => r.id === s.sourceId)
+                if (sourceSticky) {
+                  const today = new Date()
+                  today.setHours(0, 0, 0, 0)
+                  const [year, month, day] = sourceSticky.date.split('-').map(Number)
+                  const date = new Date(year, month - 1, day)
+
+                  if (filters.dateFilter === 'today' && date.getTime() !== today.getTime()) return false
+                  if (filters.dateFilter === 'yesterday') {
+                    const yesterday = new Date(today)
+                    yesterday.setDate(yesterday.getDate() - 1)
+                    if (date.getTime() !== yesterday.getTime()) return false
+                  }
+                  if (filters.dateFilter === 'week') {
+                    const weekAgo = new Date(today)
+                    weekAgo.setDate(weekAgo.getDate() - 7)
+                    if (date < weekAgo || date > today) return false
+                  }
+                }
+              }
+              return true
+            })
+            .map(s => s.id)
+        )
+
+        arrangeGroup(TASKS_GROUP_DATE, filteredIds)
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [showTasks, taskViewMode, arrangeGroup, stickies, filters])
 
   const updateDrag = useCallback((e: MouseEvent) => {
     if (!drag) return
@@ -569,17 +941,18 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         const otherGroups = groups.filter(g => g.date !== movingDate)
 
         // Check if group overlaps any other group at a test position
+        // Include label height in collision detection
         const groupOverlapsAt = (testX: number, testY: number): boolean => {
           const testRect = {
             l: testX - HALF_GAP,
-            t: testY - HALF_GAP,
+            t: testY - HALF_GAP - GROUP_LABEL_HEIGHT,
             r: testX + groupWidth + HALF_GAP,
             b: testY + groupHeight + HALF_GAP
           }
 
           return otherGroups.some(other => {
             const ol = other.bounds.x - GROUP_PADDING - HALF_GAP
-            const ot = other.bounds.y - GROUP_PADDING - HALF_GAP
+            const ot = other.bounds.y - GROUP_PADDING - HALF_GAP - GROUP_LABEL_HEIGHT
             const or = other.bounds.x + other.bounds.width + GROUP_PADDING + HALF_GAP
             const ob = other.bounds.y + other.bounds.height + GROUP_PADDING + HALF_GAP
             return !(testRect.r <= ol || testRect.l >= or || testRect.b <= ot || testRect.t >= ob)
@@ -709,6 +1082,78 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }))
   }, [])
 
+  // Toggle todo checkbox on a task sticky (updates source sticky)
+  const toggleTaskTodo = useCallback((taskStickyId: string) => {
+    const taskSticky = stickies.find(s => s.id === taskStickyId)
+    if (!taskSticky || !taskSticky.sourceId || taskSticky.sourceLineIndex === undefined) return
+
+    // Toggle the todo in the source sticky
+    toggleTodo(taskSticky.sourceId, taskSticky.sourceLineIndex)
+  }, [stickies, toggleTodo])
+
+  // Update task sticky content and sync back to source sticky
+  const updateTaskStickyContent = useCallback((taskStickyId: string, newContent: string) => {
+    const taskSticky = stickies.find(s => s.id === taskStickyId)
+    if (!taskSticky || !taskSticky.sourceId || taskSticky.sourceLineIndex === undefined) return
+
+    const sourceSticky = stickies.find(s => s.id === taskSticky.sourceId)
+    if (!sourceSticky) return
+
+    // Extract plain text from new content (strip HTML)
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = newContent
+    const newText = tempDiv.textContent || ''
+
+    // Update the source sticky's todo line
+    if (sourceSticky.content.includes('data-type="taskItem"')) {
+      // Tiptap HTML format
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(sourceSticky.content, 'text/html')
+      const taskItems = doc.querySelectorAll('li[data-type="taskItem"]')
+
+      if (taskItems[taskSticky.sourceLineIndex]) {
+        // Find the paragraph inside the task item and update its text
+        const p = taskItems[taskSticky.sourceLineIndex].querySelector('p')
+        if (p) {
+          p.textContent = newText
+        } else {
+          // Create a p if it doesn't exist
+          const newP = doc.createElement('p')
+          newP.textContent = newText
+          taskItems[taskSticky.sourceLineIndex].innerHTML = ''
+          taskItems[taskSticky.sourceLineIndex].appendChild(newP)
+        }
+
+        const newSourceContent = doc.body.innerHTML
+        const newStickies = stickies.map(s =>
+          s.id === sourceSticky.id ? { ...s, content: newSourceContent } : s
+        )
+        pushHistory(newStickies)
+        setStickies(newStickies)
+      }
+    } else {
+      // Legacy markdown format
+      const lines = sourceSticky.content.split('\n')
+      if (lines[taskSticky.sourceLineIndex]) {
+        // Preserve the checkbox prefix
+        const line = lines[taskSticky.sourceLineIndex]
+        const checkboxMatch = line.match(/^(\s*-\s*\[[x ]\]\s*)/)
+        if (checkboxMatch) {
+          lines[taskSticky.sourceLineIndex] = checkboxMatch[1] + newText
+        } else {
+          lines[taskSticky.sourceLineIndex] = newText
+        }
+
+        const newSourceContent = lines.join('\n')
+        const newStickies = stickies.map(s =>
+          s.id === sourceSticky.id ? { ...s, content: newSourceContent } : s
+        )
+        pushHistory(newStickies)
+        setStickies(newStickies)
+      }
+    }
+  }, [stickies, pushHistory])
+
   // Pan to center a sticky in the viewport
   const panToSticky = useCallback((stickyId: string) => {
     const sticky = stickies.find(s => s.id === stickyId)
@@ -718,8 +1163,8 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
 
-    // Account for sidebar width (~320px for todo pane when visible)
-    const sidebarWidth = showPane ? 320 : 0
+    // Account for sidebar width (~320px for todo pane when visible in panel mode)
+    const sidebarWidth = showTasks && taskViewMode === 'panel' ? 320 : 0
     const availableWidth = viewportWidth - sidebarWidth
 
     setOffset({
@@ -729,7 +1174,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
     // Also select the sticky
     setSelectedIds(new Set([stickyId]))
-  }, [stickies, showPane])
+  }, [stickies, showTasks, taskViewMode])
 
   // Export data
   const exportData = useCallback((): ThoughtCanvasExport => {
@@ -755,6 +1200,61 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }
   }, [stickies, pushHistory])
 
+  // Tasks group operations
+  const updateTasksGroupPosition = useCallback((x: number, y: number) => {
+    setTasksGroup(prev => ({ ...prev, position: { x, y } }))
+  }, [])
+
+  const setTasksGroupExpanded = useCallback((expanded: boolean) => {
+    setTasksGroup(prev => ({ ...prev, expanded }))
+  }, [])
+
+  const updateTaskCardPosition = useCallback((todoKey: string, x: number, y: number) => {
+    setTaskCardPositions(prev => ({ ...prev, [todoKey]: { x, y } }))
+  }, [])
+
+  // Create a new task (sticky with an empty todo) - used when double-clicking in tasks group
+  const createTaskInGroup = useCallback((_x: number, _y: number) => {
+    // Find or create a sticky for today to add the task to
+    const todayDate = new Date().toISOString().split('T')[0]
+    const todaySticky = stickies.find(s => s.date === todayDate)
+
+    if (todaySticky) {
+      // Add an empty task to existing today sticky
+      const newContent = todaySticky.content.includes('data-type="taskList"')
+        ? todaySticky.content.replace(
+            /<\/ul>\s*$/,
+            `<li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p></p></div></li></ul>`
+          )
+        : todaySticky.content + `<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p></p></div></li></ul>`
+
+      const newStickies = stickies.map(s =>
+        s.id === todaySticky.id ? { ...s, content: newContent } : s
+      )
+      pushHistory(newStickies)
+      setStickies(newStickies)
+      // Focus the sticky for editing
+      setEditingId(todaySticky.id)
+      setSelectedIds(new Set([todaySticky.id]))
+    } else {
+      // Create a new sticky for today with an empty task
+      const pos = findNonOverlappingPosition(100, 100, stickies, todayDate)
+      const newSticky: Sticky = {
+        id: Date.now().toString(),
+        content: `<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p></p></div></li></ul>`,
+        x: pos.x,
+        y: pos.y,
+        date: todayDate,
+        zIndex: stickies.length + 1
+      }
+      const newStickies = [...stickies, newSticky]
+      pushHistory(newStickies)
+      setStickies(newStickies)
+      setEditingId(newSticky.id)
+      setSelectedIds(new Set([newSticky.id]))
+    }
+  }, [stickies, pushHistory])
+
   const value: StickiesContextValue = {
     stickies,
     selectedIds,
@@ -764,7 +1264,8 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     panning,
     panStart,
     filters,
-    showPane,
+    showTasks,
+    taskViewMode,
     canUndo,
     canRedo,
     createSticky,
@@ -778,16 +1279,26 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     startGroupDrag,
     updateDrag,
     endDrag,
+    arrangeGroup,
     startPan,
     updatePan,
     endPan,
     setOffset,
     toggleTodo,
+    toggleTaskTodo,
+    updateTaskStickyContent,
     panToSticky,
     undo,
     redo,
     setFilters,
-    setShowPane,
+    setShowTasks,
+    setTaskViewMode,
+    tasksGroup,
+    taskCardPositions,
+    updateTasksGroupPosition,
+    setTasksGroupExpanded,
+    updateTaskCardPosition,
+    createTaskInGroup,
     getStickyHeight,
     exportData,
     importData,

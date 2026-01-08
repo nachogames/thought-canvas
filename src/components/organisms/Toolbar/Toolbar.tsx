@@ -1,17 +1,13 @@
-import { Plus, Undo2, Redo2, Trash2, ListTodo, Sun, Moon } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { Plus, Undo2, Redo2, Trash2, ListTodo, Sun, Moon, PanelRight, Layers, ChevronDown } from 'lucide-react'
 import { useStickies, useTheme } from '@/hooks'
 import { DataMenu } from '@/components/molecules'
-
-interface ToolbarProps {
-  showPane: boolean
-  onTogglePane: () => void
-}
 
 function Divider() {
   return <div className="w-px h-5 bg-gray-300 dark:bg-gray-600" />
 }
 
-export function Toolbar({ showPane, onTogglePane }: ToolbarProps) {
+export function Toolbar() {
   const {
     createSticky,
     offset,
@@ -20,8 +16,26 @@ export function Toolbar({ showPane, onTogglePane }: ToolbarProps) {
     canUndo,
     canRedo,
     deleteSelectedStickies,
-    selectedIds
+    selectedIds,
+    showTasks,
+    setShowTasks,
+    taskViewMode,
+    setTaskViewMode,
   } = useStickies()
+  const [showTaskMenu, setShowTaskMenu] = useState(false)
+  const taskMenuRef = useRef<HTMLDivElement>(null)
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!showTaskMenu) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (taskMenuRef.current && !taskMenuRef.current.contains(e.target as Node)) {
+        setShowTaskMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showTaskMenu])
   const { isDark, toggleTheme } = useTheme()
 
   const handleNewNote = () => {
@@ -78,20 +92,61 @@ export function Toolbar({ showPane, onTogglePane }: ToolbarProps) {
 
         <Divider />
 
-        {/* Todo Pane */}
-        <button
-          onClick={onTogglePane}
-          className={`
-            p-2 rounded-full transition-colors
-            ${showPane
-              ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
-              : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }
-          `}
-          title="Toggle Todo Pane"
-        >
-          <ListTodo size={18} />
-        </button>
+        {/* Tasks with dropdown */}
+        <div className="relative" ref={taskMenuRef}>
+          <div className="flex items-center h-[34px]">
+            {/* Main toggle button */}
+            <button
+              onClick={() => setShowTasks(prev => !prev)}
+              className={`
+                h-full px-2 flex items-center rounded-l-full transition-colors
+                ${showTasks
+                  ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }
+              `}
+              title={showTasks ? 'Hide Tasks' : 'Show Tasks'}
+            >
+              <ListTodo size={18} />
+            </button>
+            {/* Dropdown trigger */}
+            <button
+              onClick={() => setShowTaskMenu(prev => !prev)}
+              className={`
+                h-full px-1.5 flex items-center rounded-r-full transition-colors
+                ${showTasks
+                  ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
+                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }
+              `}
+              title="Task view options"
+            >
+              <ChevronDown size={14} />
+            </button>
+          </div>
+
+          {/* Dropdown menu */}
+          {showTaskMenu && (
+            <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]">
+              <button
+                onClick={() => { setTaskViewMode('panel'); setShowTaskMenu(false) }}
+                className={`w-full px-3 py-1.5 flex items-center gap-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${taskViewMode === 'panel' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300'}`}
+              >
+                <PanelRight size={14} />
+                <span>Panel</span>
+                {taskViewMode === 'panel' && <span className="ml-auto text-xs">✓</span>}
+              </button>
+              <button
+                onClick={() => { setTaskViewMode('overlay'); setShowTaskMenu(false) }}
+                className={`w-full px-3 py-1.5 flex items-center gap-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${taskViewMode === 'overlay' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300'}`}
+              >
+                <Layers size={14} />
+                <span>Overlay</span>
+                {taskViewMode === 'overlay' && <span className="ml-auto text-xs">✓</span>}
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Theme Toggle */}
         <button

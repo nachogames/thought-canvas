@@ -12,6 +12,13 @@ export interface Sticky {
   zIndex: number
   measuredHeight?: number // Actual rendered height from DOM
   color?: StickyColor // Card background color
+  // Task-specific fields
+  isTask?: boolean // Marks this as a task sticky
+  sourceId?: string // Reference to source note sticky (for linked tasks)
+  sourceLineIndex?: number // Line index in source sticky for sync
+  taskChecked?: boolean // Checkbox state for task stickies
+  taskPriority?: number // Priority level (1-3) for task stickies
+  taskTags?: string[] // Tags for task stickies
 }
 
 export interface StickyRect {
