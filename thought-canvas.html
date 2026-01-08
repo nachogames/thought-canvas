@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Thought Canvas</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: 'IBM Plex Sans', sans-serif; overflow: hidden; transition: background 0.3s; }
+    body.dark { background: #121214; }
+    body.light { background: #f5f5f7; }
+    
+    .sticky-line { min-height: 22px; display: flex; align-items: flex-start; line-height: 1.65; }
+    .sticky-line.empty { height: 22px; }
+    
+    /* Dark mode styles */
+    .dark .todo-checkbox {
+      appearance: none; width: 15px; height: 15px; border: 2px solid rgba(255,255,255,0.4);
+      border-radius: 4px; margin-right: 8px; margin-top: 3px; cursor: pointer;
+      flex-shrink: 0; background: transparent; transition: all 0.15s ease;
+    }
+    .dark .todo-checkbox:checked { background: #6366f1; border-color: #6366f1; }
+    .dark .todo-checkbox:checked::after { content: '✓'; display: block; color: white; font-size: 10px; text-align: center; line-height: 12px; font-weight: 600; }
+    .dark .todo-checkbox:hover { border-color: #818cf8; }
+    
+    .dark .bullet-marker { width: 5px; height: 5px; background: rgba(255,255,255,0.5); border-radius: 50%; margin-right: 10px; margin-top: 8px; flex-shrink: 0; }
+    .dark .tag { background: rgba(99, 102, 241, 0.2); color: #a5b4fc; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; margin: 0 3px; }
+    .dark .text-primary { color: rgba(255,255,255,0.92); }
+    .dark .text-secondary { color: rgba(255,255,255,0.6); }
+    .dark .text-tertiary { color: rgba(255,255,255,0.4); }
+    .dark .checked-text { text-decoration: line-through; color: rgba(255,255,255,0.4); }
+    
+    /* Light mode styles */
+    .light .todo-checkbox {
+      appearance: none; width: 15px; height: 15px; border: 2px solid rgba(0,0,0,0.3);
+      border-radius: 4px; margin-right: 8px; margin-top: 3px; cursor: pointer;
+      flex-shrink: 0; background: transparent; transition: all 0.15s ease;
+    }
+    .light .todo-checkbox:checked { background: #4f46e5; border-color: #4f46e5; }
+    .light .todo-checkbox:checked::after { content: '✓'; display: block; color: white; font-size: 10px; text-align: center; line-height: 12px; font-weight: 600; }
+    .light .todo-checkbox:hover { border-color: #6366f1; }
+    
+    .light .bullet-marker { width: 5px; height: 5px; background: rgba(0,0,0,0.4); border-radius: 50%; margin-right: 10px; margin-top: 8px; flex-shrink: 0; }
+    .light .tag { background: rgba(79, 70, 229, 0.12); color: #4f46e5; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-family: 'IBM Plex Mono', monospace; margin: 0 3px; }
+    .light .text-primary { color: rgba(0,0,0,0.87); }
+    .light .text-secondary { color: rgba(0,0,0,0.55); }
+    .light .text-tertiary { color: rgba(0,0,0,0.35); }
+    .light .checked-text { text-decoration: line-through; color: rgba(0,0,0,0.35); }
+    
+    .priority-1 { color: inherit; opacity: 0.6; } 
+    .priority-2 { color: #eab308; } 
+    .priority-3 { color: #f97316; } 
+    .priority-4 { color: #ef4444; font-weight: 600; }
+    
+    .sticky-editor {
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 13px; line-height: 1.65;
+      background: transparent; border: none; outline: none; resize: none; 
+      width: 100%; padding: 0; margin: 0; caret-color: #6366f1;
+    }
+    .dark .sticky-editor { color: rgba(255,255,255,0.92); }
+    .dark .sticky-editor::placeholder { color: rgba(255,255,255,0.4); }
+    .light .sticky-editor { color: rgba(0,0,0,0.87); }
+    .light .sticky-editor::placeholder { color: rgba(0,0,0,0.35); }
+    
+    .dark .slash-menu {
+      background: #1e1e22; border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 10px; padding: 6px; min-width: 220px; box-shadow: 0 12px 40px rgba(0,0,0,0.5); z-index: 1000;
+    }
+    .light .slash-menu {
+      background: #ffffff; border: 1px solid rgba(0,0,0,0.1);
+      border-radius: 10px; padding: 6px; min-width: 220px; box-shadow: 0 12px 40px rgba(0,0,0,0.15); z-index: 1000;
+    }
+    .slash-menu-item { display: flex; align-items: center; padding: 10px 12px; border-radius: 8px; cursor: pointer; transition: background 0.1s ease; }
+    .dark .slash-menu-item:hover, .dark .slash-menu-item.selected { background: rgba(99, 102, 241, 0.2); }
+    .light .slash-menu-item:hover, .light .slash-menu-item.selected { background: rgba(79, 70, 229, 0.1); }
+    .slash-menu-item-icon { width: 28px; font-size: 15px; }
+    .dark .slash-menu-item-icon { color: rgba(255,255,255,0.6); }
+    .light .slash-menu-item-icon { color: rgba(0,0,0,0.5); }
+    .slash-menu-item-label { font-size: 13px; flex: 1; }
+    .dark .slash-menu-item-label { color: rgba(255,255,255,0.92); }
+    .light .slash-menu-item-label { color: rgba(0,0,0,0.87); }
+    .slash-menu-item-shortcut { font-size: 11px; font-family: 'IBM Plex Mono', monospace; }
+    .dark .slash-menu-item-shortcut { color: rgba(255,255,255,0.35); }
+    .light .slash-menu-item-shortcut { color: rgba(0,0,0,0.35); }
+    
+    .dark .todo-pane { background: #18181b; border-left: 1px solid rgba(255,255,255,0.08); }
+    .light .todo-pane { background: #ffffff; border-left: 1px solid rgba(0,0,0,0.08); }
+    
+    .dark .todo-item { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 14px; transition: all 0.15s ease; }
+    .dark .todo-item:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
+    .light .todo-item { background: rgba(0,0,0,0.02); border: 1px solid rgba(0,0,0,0.06); border-radius: 10px; padding: 14px; transition: all 0.15s ease; }
+    .light .todo-item:hover { background: rgba(0,0,0,0.04); border-color: rgba(0,0,0,0.1); }
+    .todo-item.completed { opacity: 0.5; }
+    
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+    .light ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 4px; }
+  </style>
+</head>
+<body class="dark">
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useEffect, useCallback, useMemo } = React;
+    
+    const GRID_SIZE = 16, STICKY_WIDTH = 260, STICKY_PADDING = 18, STICKY_GAP = 20, LINE_HEIGHT = 22, GROUP_PADDING = 28;
+    
+    const SLASH_COMMANDS = [
+      { id: 'todo', label: 'Todo', icon: '☐', insert: '- [ ] ', shortcut: '⌘↵' },
+      { id: 'bullet', label: 'Bullet point', icon: '•', insert: '- ' },
+      { id: 'turn', label: 'Turn bullets to todos', icon: '↻', action: 'convert' },
+    ];
+
+    const parseContent = (text) => {
+      const lines = text.split('\n'), todos = [], tags = new Set();
+      let priority = 0;
+      lines.forEach((line, idx) => {
+        (line.match(/#(\w+)/g) || []).forEach(t => tags.add(t.slice(1)));
+        const pm = line.match(/(!{1,4})(?!\w)/);
+        if (pm) priority = Math.max(priority, pm[1].length);
+        const tm = line.match(/^(\s*)-\s*\[([ x])\]\s*(.*)$/);
+        if (tm) {
+          const todoTags = new Set();
+          (tm[3].match(/#(\w+)/g) || []).forEach(t => todoTags.add(t.slice(1)));
+          const tp = (tm[3].match(/(!{1,4})(?!\w)/) || [])[1]?.length || 0;
+          todos.push({ lineIndex: idx, checked: tm[2] === 'x', text: tm[3], tags: todoTags, priority: tp });
+        }
+      });
+      return { todos, tags, priority };
+    };
+
+    const renderInline = (text) => {
+      if (!text) return null;
+      const parts = [], regex = /(#\w+|!{1,4}(?!\w))/g;
+      let last = 0, m, k = 0;
+      while ((m = regex.exec(text))) {
+        if (m.index > last) parts.push(<span key={k++}>{text.slice(last, m.index)}</span>);
+        parts.push(m[0].startsWith('#') 
+          ? <span key={k++} className="tag">{m[0]}</span>
+          : <span key={k++} className={`priority-${m[0].length}`}>{m[0]}</span>);
+        last = regex.lastIndex;
+      }
+      if (last < text.length) parts.push(<span key={k++}>{text.slice(last)}</span>);
+      return parts.length ? parts : text;
+    };
+
+    const renderContent = (text, onToggle) => {
+      return text.split('\n').map((line, idx) => {
+        const tm = line.match(/^(\s*)-\s*\[([ x])\]\s*(.*)$/);
+        if (tm) {
+          const checked = tm[2] === 'x';
+          return (
+            <div key={idx} className="sticky-line">
+              <input type="checkbox" checked={checked} onChange={() => onToggle(idx)} className="todo-checkbox" />
+              <span className={`text-primary ${checked ? 'checked-text' : ''}`} style={{fontSize:13}}>{renderInline(tm[3])}</span>
+            </div>
+          );
+        }
+        const bm = line.match(/^(\s*)-\s+(.*)$/);
+        if (bm) return <div key={idx} className="sticky-line"><span className="bullet-marker" /><span className="text-primary" style={{fontSize:13}}>{renderInline(bm[2])}</span></div>;
+        if (!line.trim()) return <div key={idx} className="sticky-line empty" />;
+        return <div key={idx} className="sticky-line text-primary" style={{fontSize:13}}>{renderInline(line)}</div>;
+      });
+    };
+
+    // Live editing component that renders markdown in real-time
+    const LiveEditor = ({ value, onChange, onKeyDown, onBlur, placeholder, onToggleTodo }) => {
+      const editorRef = useRef(null);
+      const [cursorPos, setCursorPos] = useState(0);
+      const hiddenInputRef = useRef(null);
+
+      const lines = value.split('\n');
+      const cursorLine = value.substring(0, cursorPos).split('\n').length - 1;
+      const cursorCol = cursorPos - value.lastIndexOf('\n', cursorPos - 1) - 1;
+
+      const handleInput = (e) => {
+        const newValue = e.target.value;
+        onChange(newValue);
+        setCursorPos(e.target.selectionStart);
+      };
+
+      const handleKeyDownInternal = (e) => {
+        onKeyDown(e);
+        setTimeout(() => {
+          if (hiddenInputRef.current) {
+            setCursorPos(hiddenInputRef.current.selectionStart);
+          }
+        }, 0);
+      };
+
+      const handleClick = (e) => {
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.focus();
+        }
+      };
+
+      useEffect(() => {
+        if (hiddenInputRef.current) {
+          hiddenInputRef.current.focus();
+          hiddenInputRef.current.setSelectionRange(value.length, value.length);
+          setCursorPos(value.length);
+        }
+      }, []);
+
+      const renderLine = (line, idx) => {
+        const isCurrentLine = idx === cursorLine;
+        
+        // Todo line
+        const tm = line.match(/^(\s*)-\s*\[([ x])\]\s*(.*)$/);
+        if (tm && !isCurrentLine) {
+          const checked = tm[2] === 'x';
+          return (
+            <div key={idx} className="sticky-line">
+              <input type="checkbox" checked={checked} onChange={() => onToggleTodo(idx)} className="todo-checkbox" />
+              <span className={`text-primary ${checked ? 'checked-text' : ''}`} style={{fontSize:13}}>{renderInline(tm[3])}</span>
+            </div>
+          );
+        }
+        
+        // Bullet line
+        const bm = line.match(/^(\s*)-\s+(.*)$/);
+        if (bm && !isCurrentLine) {
+          return <div key={idx} className="sticky-line"><span className="bullet-marker" /><span className="text-primary" style={{fontSize:13}}>{renderInline(bm[2])}</span></div>;
+        }
+        
+        // Empty line
+        if (!line.trim() && !isCurrentLine) {
+          return <div key={idx} className="sticky-line empty" />;
+        }
+        
+        // Current line being edited - show raw text with cursor indicator
+        if (isCurrentLine) {
+          return (
+            <div key={idx} className="sticky-line text-primary" style={{fontSize:13, position:'relative'}}>
+              <span>{line || '\u00A0'}</span>
+            </div>
+          );
+        }
+        
+        // Regular line
+        return <div key={idx} className="sticky-line text-primary" style={{fontSize:13}}>{renderInline(line)}</div>;
+      };
+
+      return (
+        <div style={{position:'relative', cursor:'text'}} onClick={handleClick}>
+          <div style={{minHeight: LINE_HEIGHT * 2}}>
+            {value ? lines.map((line, idx) => renderLine(line, idx)) : (
+              <div className="sticky-line text-tertiary" style={{fontSize:13}}>{placeholder}</div>
+            )}
+          </div>
+          <textarea
+            ref={hiddenInputRef}
+            value={value}
+            onChange={handleInput}
+            onKeyDown={handleKeyDownInternal}
+            onBlur={onBlur}
+            onSelect={(e) => setCursorPos(e.target.selectionStart)}
+            style={{
+              position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+              opacity: 0, cursor: 'text', resize: 'none', fontSize: 13, lineHeight: 1.65,
+              fontFamily: "'IBM Plex Sans', sans-serif"
+            }}
+          />
+        </div>
+      );
+    };
+
+    const SlashMenu = ({ position, filter, selectedIndex, onSelect, theme }) => {
+      const filtered = SLASH_COMMANDS.filter(c => c.id.includes(filter.toLowerCase()) || c.label.toLowerCase().includes(filter.toLowerCase()));
+      if (!filtered.length) return null;
+      return (
+        <div className="slash-menu" style={{ position:'absolute', left: position.x, top: position.y }}>
+          {filtered.map((cmd, i) => (
+            <div key={cmd.id} className={`slash-menu-item ${i === selectedIndex ? 'selected' : ''}`} onClick={() => onSelect(cmd)}>
+              <span className="slash-menu-item-icon">{cmd.icon}</span>
+              <span className="slash-menu-item-label">{cmd.label}</span>
+              {cmd.shortcut && <span className="slash-menu-item-shortcut">{cmd.shortcut}</span>}
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    const Sticky = ({ sticky, onUpdate, onDelete, onDragStart, isSelected, onSelect, theme, allStickies }) => {
+      const [editing, setEditing] = useState(false);
+      const [text, setText] = useState(sticky.content);
+      const [slash, setSlash] = useState(null);
+      const [slashFilter, setSlashFilter] = useState('');
+      const [slashIdx, setSlashIdx] = useState(0);
+      const inputRef = useRef(null);
+
+      // Sync text with sticky content when not editing
+      useEffect(() => {
+        if (!editing) setText(sticky.content);
+      }, [sticky.content, editing]);
+
+      const getStickyHeight = (content) => {
+        const lineCount = content.split('\n').length;
+        return Math.max(lineCount * LINE_HEIGHT + STICKY_PADDING * 2, 80);
+      };
+
+      const insertAt = (ins) => {
+        const ta = inputRef.current?.querySelector('textarea');
+        if (!ta) return;
+        const pos = ta.selectionStart, txt = ta.value;
+        const lineStart = txt.lastIndexOf('\n', pos - 1) + 1;
+        const fromLine = txt.substring(lineStart, pos);
+        const slashM = fromLine.match(/\/\w*$/);
+        let newTxt, newPos;
+        if (slashM) {
+          const before = txt.substring(0, pos - slashM[0].length);
+          newTxt = before + ins + txt.substring(pos);
+          newPos = before.length + ins.length;
+        } else {
+          newTxt = txt.substring(0, pos) + ins + txt.substring(pos);
+          newPos = pos + ins.length;
+        }
+        setText(newTxt);
+        onUpdate(sticky.id, { content: newTxt }); // Live update
+        setTimeout(() => {
+          const ta2 = inputRef.current?.querySelector('textarea');
+          if (ta2) { ta2.setSelectionRange(newPos, newPos); ta2.focus(); }
+        }, 0);
+      };
+
+      const convertBullets = () => {
+        const newText = text.replace(/^(\s*)-\s+(?!\[)/gm, '$1- [ ] ');
+        setText(newText);
+        onUpdate(sticky.id, { content: newText });
+        setSlash(null);
+        setSlashFilter('');
+      };
+
+      const handleSlashSelect = (cmd) => {
+        if (cmd.action === 'convert') convertBullets();
+        else if (cmd.insert) insertAt(cmd.insert);
+        setSlash(null); setSlashFilter(''); setSlashIdx(0);
+      };
+
+      const handleToggleTodo = (idx) => {
+        const lines = text.split('\n');
+        lines[idx] = lines[idx].includes('[ ]') ? lines[idx].replace('[ ]', '[x]') : lines[idx].replace('[x]', '[ ]');
+        const newText = lines.join('\n');
+        setText(newText);
+        onUpdate(sticky.id, { content: newText });
+      };
+
+      const handleKeyDown = (e) => {
+        if (slash) {
+          const filtered = SLASH_COMMANDS.filter(c => c.id.includes(slashFilter.toLowerCase()) || c.label.toLowerCase().includes(slashFilter.toLowerCase()));
+          if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIdx(i => i < filtered.length - 1 ? i + 1 : 0); return; }
+          if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIdx(i => i > 0 ? i - 1 : filtered.length - 1); return; }
+          if (e.key === 'Enter' || e.key === 'Tab' || e.key === ' ') { e.preventDefault(); if (filtered[slashIdx]) handleSlashSelect(filtered[slashIdx]); return; }
+          if (e.key === 'Escape') { e.preventDefault(); setSlash(null); setSlashFilter(''); return; }
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); insertAt('- [ ] '); return; }
+        if (e.key === 'Escape') { setEditing(false); setSlash(null); }
+      };
+
+      const handleChange = (val) => {
+        setText(val);
+        onUpdate(sticky.id, { content: val }); // Live update for todos
+        
+        const ta = inputRef.current?.querySelector('textarea');
+        if (!ta) return;
+        const pos = ta.selectionStart;
+        const lineStart = val.lastIndexOf('\n', pos - 1) + 1;
+        const lineText = val.substring(lineStart, pos);
+        const sm = lineText.match(/\/(\w*)$/);
+        if (sm) {
+          const lines = val.substring(0, pos).split('\n').length - 1;
+          setSlash({ x: 0, y: (lines + 1) * LINE_HEIGHT + 4 });
+          setSlashFilter(sm[1]);
+          setSlashIdx(0);
+        } else { setSlash(null); setSlashFilter(''); }
+      };
+
+      const handleBlur = () => {
+        setTimeout(() => {
+          if (!slash) {
+            setEditing(false);
+          }
+        }, 150);
+      };
+
+      const handleToggleFromView = (idx) => {
+        const lines = sticky.content.split('\n');
+        lines[idx] = lines[idx].includes('[ ]') ? lines[idx].replace('[ ]', '[x]') : lines[idx].replace('[x]', '[ ]');
+        onUpdate(sticky.id, { content: lines.join('\n') });
+      };
+
+      const handleMouseDown = (e) => { if (editing) return; e.stopPropagation(); onSelect(sticky.id); onDragStart(sticky.id, e); };
+
+      const lineCount = (editing ? text : sticky.content).split('\n').length;
+      const height = Math.max(lineCount * LINE_HEIGHT, LINE_HEIGHT * 2);
+
+      const isDark = theme === 'dark';
+
+      return (
+        <div
+          style={{
+            position: 'absolute', left: sticky.x, top: sticky.y, width: STICKY_WIDTH, padding: STICKY_PADDING,
+            background: isDark ? 'linear-gradient(145deg, #242428, #1e1e22)' : 'linear-gradient(145deg, #ffffff, #f8f8fa)',
+            border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+            borderRadius: 14,
+            boxShadow: isSelected 
+              ? `0 0 0 2px ${isDark ? '#6366f1' : '#4f46e5'}, 0 12px 40px ${isDark ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0.15)'}` 
+              : `0 4px 24px ${isDark ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0.08)'}`,
+            zIndex: isSelected ? 100 : sticky.zIndex || 1, cursor: editing ? 'text' : 'grab',
+          }}
+          onMouseDown={handleMouseDown}
+          onDoubleClick={(e) => { e.stopPropagation(); setEditing(true); setText(sticky.content); }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {editing ? (
+            <div ref={inputRef} style={{ position: 'relative' }}>
+              <LiveEditor
+                value={text}
+                onChange={handleChange}
+                onKeyDown={handleKeyDown}
+                onBlur={handleBlur}
+                placeholder="Type here... / for commands"
+                onToggleTodo={handleToggleTodo}
+              />
+              {slash && <SlashMenu position={slash} filter={slashFilter} selectedIndex={slashIdx} onSelect={handleSlashSelect} theme={theme} />}
+            </div>
+          ) : (
+            <div>{sticky.content ? renderContent(sticky.content, handleToggleFromView) : <span className="text-tertiary" style={{fontSize:13}}>Double-click to edit...</span>}</div>
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(sticky.id); }}
+            style={{
+              position: 'absolute', top: 10, right: 10, width: 26, height: 26, borderRadius: 8,
+              background: isDark ? 'rgba(239,68,68,0.15)' : 'rgba(239,68,68,0.1)', 
+              color: '#ef4444', border: 'none', cursor: 'pointer',
+              opacity: 0, transition: 'opacity 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 500
+            }}
+            onMouseEnter={(e) => e.target.style.opacity = 1}
+            onMouseLeave={(e) => e.target.style.opacity = 0}
+          >×</button>
+        </div>
+      );
+    };
+
+    const DayGroup = ({ date, bounds, theme }) => {
+      const isToday = new Date().toDateString() === new Date(date).toDateString();
+      const label = isToday ? 'Today' : new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const isDark = theme === 'dark';
+      
+      return (
+        <div style={{
+          position: 'absolute', 
+          left: bounds.x - GROUP_PADDING, 
+          top: bounds.y - 44, 
+          width: bounds.width + GROUP_PADDING * 2, 
+          height: bounds.height + 44 + GROUP_PADDING,
+          background: isToday 
+            ? (isDark ? 'rgba(99,102,241,0.04)' : 'rgba(79,70,229,0.04)') 
+            : (isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)'),
+          border: `1.5px dashed ${isToday 
+            ? (isDark ? 'rgba(99,102,241,0.25)' : 'rgba(79,70,229,0.25)') 
+            : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)')}`,
+          borderRadius: 18, zIndex: 0
+        }}>
+          <div style={{
+            position: 'absolute', top: -1, left: 20, padding: '6px 14px', borderRadius: '0 0 10px 10px',
+            background: isToday 
+              ? (isDark ? 'rgba(99,102,241,0.15)' : 'rgba(79,70,229,0.1)') 
+              : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+            color: isToday 
+              ? (isDark ? '#a5b4fc' : '#4f46e5') 
+              : (isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.4)'),
+            fontSize: 11, fontFamily: "'IBM Plex Mono', monospace", fontWeight: 500, letterSpacing: '0.02em'
+          }}>{label}</div>
+        </div>
+      );
+    };
+
+    const TodoPane = ({ stickies, onToggle, filters, setFilters, theme }) => {
+      const isDark = theme === 'dark';
+      
+      const allTodos = useMemo(() => {
+        const todos = [];
+        stickies.forEach(s => {
+          const { todos: st, tags: stags } = parseContent(s.content);
+          st.forEach(t => todos.push({ ...t, stickyId: s.id, allTags: new Set([...t.tags, ...stags]), date: s.date }));
+        });
+        return todos;
+      }, [stickies]);
+      
+      const allTags = useMemo(() => Array.from(new Set(allTodos.flatMap(t => [...t.allTags]))).sort(), [allTodos]);
+      
+      const filtered = useMemo(() => {
+        let r = [...allTodos];
+        if (filters.tag) r = r.filter(t => t.allTags.has(filters.tag));
+        if (filters.hideCompleted) r = r.filter(t => !t.checked);
+        return r.sort((a, b) => b.priority - a.priority || new Date(b.date) - new Date(a.date));
+      }, [allTodos, filters]);
+
+      return (
+        <div className="todo-pane" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: 20, borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h2 className="text-primary" style={{ margin: 0, fontSize: 17, fontWeight: 600 }}>Todos</h2>
+              <span className="text-tertiary" style={{ fontSize: 12, fontFamily: "'IBM Plex Mono', monospace" }}>
+                {allTodos.filter(t => t.checked).length}/{allTodos.length}
+              </span>
+            </div>
+            <select
+              value={filters.tag || ''} onChange={(e) => setFilters(f => ({ ...f, tag: e.target.value || null }))}
+              style={{ 
+                width: '100%', padding: '10px 14px', fontSize: 13, 
+                background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)', 
+                border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`, 
+                borderRadius: 8, color: isDark ? 'rgba(255,255,255,0.8)' : 'rgba(0,0,0,0.7)', outline: 'none', marginBottom: 10, cursor: 'pointer' 
+              }}
+            >
+              <option value="">All tags</option>
+              {allTags.map(t => <option key={t} value={t}>#{t}</option>)}
+            </select>
+            <label className="text-secondary" style={{ display: 'flex', alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
+              <input type="checkbox" checked={filters.hideCompleted} onChange={(e) => setFilters(f => ({ ...f, hideCompleted: e.target.checked }))} style={{ marginRight: 10, width: 16, height: 16 }} />
+              Hide completed
+            </label>
+          </div>
+          <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+            {filtered.length === 0 ? (
+              <div style={{ textAlign: 'center', marginTop: 48 }}>
+                <div className="text-tertiary" style={{ fontSize: 28, marginBottom: 12 }}>☐</div>
+                <p className="text-tertiary" style={{ fontSize: 14, margin: 0 }}>No todos yet</p>
+                <p className="text-tertiary" style={{ fontSize: 12, marginTop: 6, opacity: 0.7 }}>Use /todo or ⌘+Enter</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {filtered.map(t => (
+                  <div key={`${t.stickyId}-${t.lineIndex}`} className={`todo-item ${t.checked ? 'completed' : ''}`}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+                      <input type="checkbox" checked={t.checked} onChange={() => onToggle(t.stickyId, t.lineIndex)} className="todo-checkbox" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span className={`text-primary ${t.checked ? 'checked-text' : ''}`} style={{ fontSize: 13 }}>{renderInline(t.text)}</span>
+                        {(t.allTags.size > 0 || t.priority > 0) && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                            {[...t.allTags].map(tag => <span key={tag} className="tag">{tag}</span>)}
+                            {t.priority > 0 && <span className={`priority-${t.priority}`} style={{ fontSize: 11 }}>{'!'.repeat(t.priority)}</span>}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const App = () => {
+      const [theme, setTheme] = useState('dark');
+      const [stickies, setStickies] = useState([{
+        id: '1', content: 'Welcome to Thought Canvas\n\n- [ ] Try creating a todo #demo\n- Bullet points work too\n- [ ] Add priority with !! #important',
+        x: 100, y: 100, date: new Date().toISOString().split('T')[0], zIndex: 1
+      }]);
+      const [selectedId, setSelectedId] = useState(null);
+      const [drag, setDrag] = useState(null);
+      const [offset, setOffset] = useState({ x: 0, y: 0 });
+      const [panning, setPanning] = useState(false);
+      const [panStart, setPanStart] = useState(null);
+      const [filters, setFilters] = useState({ tag: null, hideCompleted: false });
+      const [showPane, setShowPane] = useState(true);
+      const canvasRef = useRef(null);
+
+      useEffect(() => {
+        document.body.className = theme;
+      }, [theme]);
+
+      const snap = v => Math.round(v / GRID_SIZE) * GRID_SIZE;
+
+      const getStickyHeight = (content) => {
+        const lineCount = content.split('\n').length;
+        return Math.max(lineCount * LINE_HEIGHT + STICKY_PADDING * 2, 80);
+      };
+
+      const getStickyRect = (s) => {
+        const h = getStickyHeight(s.content);
+        return { l: s.x, t: s.y, r: s.x + STICKY_WIDTH, b: s.y + h };
+      };
+
+      const dayGroups = useMemo(() => {
+        const g = {};
+        stickies.forEach(s => { if (!g[s.date]) g[s.date] = { stickies: [], bounds: null }; g[s.date].stickies.push(s); });
+        Object.keys(g).forEach(d => {
+          const ss = g[d].stickies; if (!ss.length) return;
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          ss.forEach(s => { 
+            const rect = getStickyRect(s);
+            minX = Math.min(minX, rect.l); 
+            minY = Math.min(minY, rect.t); 
+            maxX = Math.max(maxX, rect.r); 
+            maxY = Math.max(maxY, rect.b); 
+          });
+          g[d].bounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+        });
+        return g;
+      }, [stickies]);
+
+      const resolveCollisions = useCallback((state, movedId) => {
+        let r = [...state], iter = 0;
+        const getRect = s => { 
+          const h = getStickyHeight(s.content); 
+          return { l: s.x, t: s.y, r: s.x + STICKY_WIDTH + STICKY_GAP, b: s.y + h + STICKY_GAP }; 
+        };
+        const overlaps = (a, b) => { const ra = getRect(a), rb = getRect(b); return !(ra.r < rb.l || ra.l > rb.r || ra.b < rb.t || ra.t > rb.b); };
+        while (iter++ < 30) {
+          let hit = false;
+          for (let i = 0; i < r.length; i++) for (let j = i + 1; j < r.length; j++) if (overlaps(r[i], r[j])) {
+            hit = true;
+            const pi = r[i].id === movedId ? j : i, pusher = r[i].id === movedId ? r[i] : r[j], pushed = r[pi];
+            const dx = pushed.x - pusher.x, dy = pushed.y - pusher.y;
+            r[pi] = { ...pushed, x: snap(pushed.x + (dx >= 0 ? GRID_SIZE : -GRID_SIZE)), y: snap(pushed.y + (dy >= 0 ? GRID_SIZE : -GRID_SIZE)) };
+          }
+          if (!hit) break;
+        }
+        return r;
+      }, []);
+
+      const findNonOverlappingPosition = useCallback((x, y, existingStickies) => {
+        let posX = snap(x), posY = snap(y);
+        const newRect = () => ({ l: posX, t: posY, r: posX + STICKY_WIDTH + STICKY_GAP, b: posY + 80 + STICKY_GAP });
+        const overlaps = (rect) => existingStickies.some(s => {
+          const sr = { l: s.x, t: s.y, r: s.x + STICKY_WIDTH + STICKY_GAP, b: s.y + getStickyHeight(s.content) + STICKY_GAP };
+          return !(rect.r < sr.l || rect.l > sr.r || rect.b < sr.t || rect.t > sr.b);
+        });
+        let iter = 0;
+        while (overlaps(newRect()) && iter++ < 20) {
+          posY = snap(posY + GRID_SIZE * 2);
+          if (posY > 1000) { posY = snap(y); posX = snap(posX + STICKY_WIDTH + STICKY_GAP); }
+        }
+        return { x: posX, y: posY };
+      }, []);
+
+      const handleDragStart = useCallback((id, e) => { const s = stickies.find(x => x.id === id); if (s) setDrag({ id, startX: e.clientX, startY: e.clientY, origX: s.x, origY: s.y }); }, [stickies]);
+
+      const handleMouseMove = useCallback((e) => {
+        if (panning && panStart) { setOffset({ x: offset.x + e.clientX - panStart.x, y: offset.y + e.clientY - panStart.y }); setPanStart({ x: e.clientX, y: e.clientY }); return; }
+        if (!drag) return;
+        const newX = snap(drag.origX + e.clientX - drag.startX), newY = snap(drag.origY + e.clientY - drag.startY);
+        setStickies(prev => resolveCollisions(prev.map(s => s.id === drag.id ? { ...s, x: newX, y: newY } : s), drag.id));
+      }, [drag, panning, panStart, offset, resolveCollisions]);
+
+      const handleMouseUp = useCallback(() => { setDrag(null); setPanning(false); setPanStart(null); }, []);
+
+      const createSticky = useCallback((x, y) => {
+        const rawX = x - offset.x, rawY = y - offset.y;
+        const pos = findNonOverlappingPosition(rawX, rawY, stickies);
+        const ns = { id: Date.now().toString(), content: '', x: pos.x, y: pos.y, date: new Date().toISOString().split('T')[0], zIndex: stickies.length + 1 };
+        setStickies(prev => [...prev, ns]); setSelectedId(ns.id);
+      }, [offset, stickies, findNonOverlappingPosition]);
+
+      const updateSticky = useCallback((id, u) => setStickies(p => p.map(s => s.id === id ? { ...s, ...u } : s)), []);
+      const deleteSticky = useCallback((id) => { setStickies(p => p.filter(s => s.id !== id)); if (selectedId === id) setSelectedId(null); }, [selectedId]);
+      const toggleTodo = useCallback((sid, li) => setStickies(p => p.map(s => { if (s.id !== sid) return s; const lines = s.content.split('\n'); lines[li] = lines[li].includes('[ ]') ? lines[li].replace('[ ]', '[x]') : lines[li].replace('[x]', '[ ]'); return { ...s, content: lines.join('\n') }; })), []);
+
+      useEffect(() => { window.addEventListener('mousemove', handleMouseMove); window.addEventListener('mouseup', handleMouseUp); return () => { window.removeEventListener('mousemove', handleMouseMove); window.removeEventListener('mouseup', handleMouseUp); }; }, [handleMouseMove, handleMouseUp]);
+
+      const isDark = theme === 'dark';
+
+      return (
+        <div style={{ height: '100vh', display: 'flex', background: isDark ? '#121214' : '#f5f5f7' }}>
+          <div ref={canvasRef} style={{ flex: 1, position: 'relative', overflow: 'hidden', cursor: panning ? 'grabbing' : 'default' }}
+            onClick={(e) => { if (e.target === canvasRef.current || e.target.classList.contains('canvas-bg')) setSelectedId(null); }}
+            onDoubleClick={(e) => { if (e.target === canvasRef.current || e.target.classList.contains('canvas-bg')) createSticky(e.clientX, e.clientY); }}
+            onMouseDown={(e) => { if (e.button === 1 || (e.button === 0 && e.altKey)) { e.preventDefault(); setPanning(true); setPanStart({ x: e.clientX, y: e.clientY }); } }}
+          >
+            <div className="canvas-bg" style={{ 
+              position: 'absolute', inset: 0, 
+              backgroundImage: `radial-gradient(circle, ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.08)'} 1px, transparent 1px)`, 
+              backgroundSize: `${GRID_SIZE}px ${GRID_SIZE}px`, 
+              backgroundPosition: `${offset.x % GRID_SIZE}px ${offset.y % GRID_SIZE}px` 
+            }} />
+            <div className="canvas-bg" style={{ position: 'absolute', transform: `translate(${offset.x}px, ${offset.y}px)` }}>
+              {Object.entries(dayGroups).map(([d, g]) => g.bounds && <DayGroup key={d} date={d} bounds={g.bounds} theme={theme} />)}
+              {stickies.map(s => <Sticky key={s.id} sticky={s} onUpdate={updateSticky} onDelete={deleteSticky} onDragStart={handleDragStart} isSelected={selectedId === s.id} onSelect={setSelectedId} theme={theme} allStickies={stickies} />)}
+            </div>
+            
+            {/* Toolbar */}
+            <div style={{ position: 'absolute', bottom: 24, left: 24, display: 'flex', gap: 10 }}>
+              <button onClick={() => createSticky(200 + offset.x, 200 + offset.y)} style={{ 
+                padding: '12px 18px', borderRadius: 10, 
+                background: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(79,70,229,0.1)', 
+                color: isDark ? '#a5b4fc' : '#4f46e5', 
+                border: `1px solid ${isDark ? 'rgba(99,102,241,0.25)' : 'rgba(79,70,229,0.2)'}`, 
+                cursor: 'pointer', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 
+              }}><span style={{ fontSize: 17 }}>+</span> New Note</button>
+              <button onClick={() => setShowPane(!showPane)} style={{ 
+                padding: '12px 18px', borderRadius: 10, 
+                background: showPane ? (isDark ? 'rgba(99,102,241,0.2)' : 'rgba(79,70,229,0.12)') : (isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'), 
+                color: showPane ? (isDark ? '#a5b4fc' : '#4f46e5') : (isDark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.5)'), 
+                border: `1px solid ${showPane ? (isDark ? 'rgba(99,102,241,0.3)' : 'rgba(79,70,229,0.25)') : (isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')}`, 
+                cursor: 'pointer', fontSize: 13, fontWeight: 500 
+              }}>Todos</button>
+            </div>
+            
+            {/* Theme toggle */}
+            <button 
+              onClick={() => setTheme(t => t === 'dark' ? 'light' : 'dark')}
+              style={{
+                position: 'absolute', top: 20, right: showPane ? 340 : 20, 
+                padding: '10px 14px', borderRadius: 10,
+                background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
+                color: isDark ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)',
+                cursor: 'pointer', fontSize: 14, transition: 'right 0.2s'
+              }}
+            >
+              {isDark ? '☀️' : '🌙'}
+            </button>
+            
+            <div style={{ position: 'absolute', bottom: 24, right: showPane ? 344 : 24, fontSize: 11, color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(0,0,0,0.35)', fontFamily: "'IBM Plex Mono', monospace", transition: 'right 0.2s' }}>Double-click to create • Alt+drag to pan • / for commands • ⌘+Enter for todo</div>
+          </div>
+          {showPane && <div style={{ width: 320 }}><TodoPane stickies={stickies} onToggle={toggleTodo} filters={filters} setFilters={setFilters} theme={theme} /></div>}
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
