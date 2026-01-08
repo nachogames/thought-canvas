@@ -198,8 +198,15 @@ const suggestion: Omit<SuggestionOptions<CommandItem>, 'editor'> = {
       },
 
       onExit: () => {
-        popup?.[0]?.destroy()
-        component?.destroy()
+        // Clean up tippy instance if it exists and hasn't been destroyed
+        if (popup?.[0]) {
+          popup[0].destroy()
+          popup = null
+        }
+        if (component) {
+          component.destroy()
+          component = null
+        }
       },
     }
   },
