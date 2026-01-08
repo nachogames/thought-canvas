@@ -7,9 +7,9 @@ import {
   useRef,
   type ReactNode,
 } from 'react'
-import type { Sticky, DragState, PanState, TodoFilters } from '@/types'
+import type { Sticky, DragState, PanState, TodoFilters, ThoughtCanvasExport, ImportMode } from '@/types'
 import { GRID_SIZE, STICKY_WIDTH, STICKY_GAP, MIN_STICKY_HEIGHT, GROUP_PADDING } from '@/constants'
-import { getStickyHeight, resolveCollisions } from '@/utils'
+import { getStickyHeight, resolveCollisions, createExportData, generateNewIds, offsetPositions } from '@/utils'
 import type { GroupObstacle } from '@/utils/grid'
 
 const STORAGE_KEY = 'thought-canvas-stickies'
@@ -64,6 +64,10 @@ interface StickiesContextValue {
 
   // Helpers
   getStickyHeight: (content: string, measuredHeight?: number) => number
+
+  // Export/Import
+  exportData: () => ThoughtCanvasExport
+  importData: (data: ThoughtCanvasExport, mode: ImportMode) => void
 }
 
 const StickiesContext = createContext<StickiesContextValue | null>(null)
@@ -714,6 +718,30 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     setSelectedIds(new Set([stickyId]))
   }, [stickies, showPane])
 
+  // Export data
+  const exportData = useCallback((): ThoughtCanvasExport => {
+    return createExportData(stickies)
+  }, [stickies])
+
+  // Import data
+  const importData = useCallback((data: ThoughtCanvasExport, mode: ImportMode) => {
+    if (mode === 'replace') {
+      // Replace all - push current state to history for undo
+      pushHistory(data.stickies)
+      setStickies(data.stickies)
+      setSelectedIds(new Set())
+      setEditingId(null)
+    } else {
+      // Merge - generate new IDs and offset positions
+      const newStickies = offsetPositions(generateNewIds(data.stickies), 100)
+      const merged = [...stickies, ...newStickies]
+      pushHistory(merged)
+      setStickies(merged)
+      // Select the newly imported stickies
+      setSelectedIds(new Set(newStickies.map(s => s.id)))
+    }
+  }, [stickies, pushHistory])
+
   const value: StickiesContextValue = {
     stickies,
     selectedIds,
@@ -748,6 +776,8 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     setFilters,
     setShowPane,
     getStickyHeight,
+    exportData,
+    importData,
   }
 
   return (

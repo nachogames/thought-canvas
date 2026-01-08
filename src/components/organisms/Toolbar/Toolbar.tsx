@@ -1,5 +1,6 @@
 import { Plus, Undo2, Redo2, Trash2, ListTodo, Sun, Moon } from 'lucide-react'
 import { useStickies, useTheme } from '@/hooks'
+import { DataMenu } from '@/components/molecules'
 
 interface ToolbarProps {
   showPane: boolean
@@ -100,6 +101,9 @@ export function Toolbar({ showPane, onTogglePane }: ToolbarProps) {
         >
           {isDark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
+
+        {/* Data Menu (Import/Export) */}
+        <DataMenu />
 
         {/* Contextual Delete - appears when notes selected */}
         {selectedIds.size > 0 && (
