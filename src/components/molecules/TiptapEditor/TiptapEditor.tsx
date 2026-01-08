@@ -4,6 +4,7 @@ import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
 import { SlashCommands } from './SlashCommands'
+import { TwoStepBackspace } from './TwoStepBackspace'
 import { useEffect } from 'react'
 
 interface TiptapEditorProps {
@@ -45,6 +46,7 @@ export function TiptapEditor({
         placeholder,
       }),
       SlashCommands,
+      TwoStepBackspace,
     ],
     content,
     editable,

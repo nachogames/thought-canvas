@@ -212,10 +212,18 @@ const loadStickies = (): Sticky[] => {
   } catch (e) {
     console.error('Failed to load stickies from localStorage:', e)
   }
-  // Return default sticky
+  // Return default sticky with Tiptap HTML format
   return [{
     id: '1',
-    content: 'Welcome to Thought Canvas\n\n- [ ] Try creating a todo #demo\n- Bullet points work too\n- [ ] Add priority with !! #important',
+    content: `<p>Welcome to Thought Canvas</p>
+<ul data-type="taskList">
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Create todos with checkboxes</p></div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Add tags like #project</p></div></li>
+</ul>
+<ul>
+  <li><p>Use bullets for notes</p></li>
+  <li><p>Press / for more options</p></li>
+</ul>`,
     x: 100,
     y: 100,
     date: new Date().toISOString().split('T')[0],

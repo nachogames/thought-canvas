@@ -20,14 +20,7 @@ export function DayGroup({ date, bounds, onDragStart }: DayGroupProps) {
 
   return (
     <div
-      className={`
-        absolute rounded-xl pointer-events-none
-        border-2 border-dashed
-        ${today
-          ? 'border-accent/30'
-          : 'border-border'
-        }
-      `}
+      className="absolute rounded-xl pointer-events-none border-2 border-dashed border-gray-300 dark:border-gray-700"
       style={{
         left: bounds.x - GROUP_PADDING,
         top: bounds.y - GROUP_PADDING,
@@ -38,14 +31,7 @@ export function DayGroup({ date, bounds, onDragStart }: DayGroupProps) {
       {/* Label positioned above the box */}
       <div
         data-group-header
-        className={`
-          absolute -top-8 left-0 px-3 py-1 rounded-full text-xs font-bold
-          uppercase tracking-wider cursor-grab active:cursor-grabbing pointer-events-auto
-          ${today
-            ? 'bg-accent text-white'
-            : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-          }
-        `}
+        className="absolute -top-8 left-0 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider cursor-grab active:cursor-grabbing pointer-events-auto bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
         onMouseDown={handleMouseDown}
       >
         {today ? 'Today' : formatDateLabel(date)}
