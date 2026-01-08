@@ -108,8 +108,8 @@ export function Canvas({ children }: CanvasProps) {
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement
-    // Clear selection if clicking anywhere except on a sticky
-    if (!target.closest('[data-sticky]')) {
+    // Clear selection if clicking anywhere except on a sticky or group header
+    if (!target.closest('[data-sticky]') && !target.closest('[data-group-header]')) {
       selectSticky(null)
     }
   }
