@@ -138,7 +138,6 @@ export function Sticky({
   }, [onSetEditing, sticky.id])
 
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
-    if (isEditing) return
     e.stopPropagation()
     e.preventDefault() // Prevent text selection while dragging
     const addToSelection = e.metaKey || e.ctrlKey
@@ -151,7 +150,7 @@ export function Sticky({
       }
       onDragStart(sticky.id, e)
     }
-  }, [isEditing, isSelected, sticky.id, onSelect, onDragStart])
+  }, [isSelected, sticky.id, onSelect, onDragStart])
 
   // Long-press hook for touch drag anywhere on card
   const longPress = useLongPress({
