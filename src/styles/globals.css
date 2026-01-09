@@ -333,3 +333,17 @@ body {
 .tippy-content {
   padding: 0;
 }
+
+/* Mobile touch handling */
+@media (max-width: 768px) {
+  /* Prevent text selection on touch */
+  .canvas-bg {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Ensure smooth scrolling in bottom sheet */
+  .bottom-sheet-content {
+    -webkit-overflow-scrolling: touch;
+  }
+}

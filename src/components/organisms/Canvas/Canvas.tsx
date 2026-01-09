@@ -174,7 +174,7 @@ export function Canvas({ children }: CanvasProps) {
     }
   }, [isDragging, panning])
 
-  // Mouse event handlers
+  // Mouse and touch event handlers
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (panning) {
@@ -184,17 +184,36 @@ export function Canvas({ children }: CanvasProps) {
       }
     }
 
+    const handleTouchMove = (e: TouchEvent) => {
+      if (panning) {
+        e.preventDefault() // Prevent scrolling while panning
+        updatePan(e)
+      } else if (drag) {
+        e.preventDefault() // Prevent scrolling while dragging
+        updateDrag(e)
+      }
+    }
+
     const handleMouseUp = () => {
+      endDrag()
+      endPan()
+    }
+
+    const handleTouchEnd = () => {
       endDrag()
       endPan()
     }
 
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mouseup', handleMouseUp)
+    window.addEventListener('touchmove', handleTouchMove, { passive: false })
+    window.addEventListener('touchend', handleTouchEnd)
 
     return () => {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
+      window.removeEventListener('touchmove', handleTouchMove)
+      window.removeEventListener('touchend', handleTouchEnd)
     }
   }, [panning, updateDrag, endDrag, updatePan, endPan])
 
@@ -232,6 +251,14 @@ export function Canvas({ children }: CanvasProps) {
     }
   }
 
+  const handleCanvasTouchStart = (e: React.TouchEvent) => {
+    const target = e.target as HTMLElement
+    // Only pan if touching directly on canvas background, not stickies or group headers
+    if (!target.closest('[data-sticky]') && !target.closest('[data-group-header]')) {
+      startPan(e)
+    }
+  }
+
   // Scroll/wheel to pan
   const handleWheel = useCallback((e: React.WheelEvent) => {
     // Update offset based on scroll delta
@@ -249,11 +276,12 @@ export function Canvas({ children }: CanvasProps) {
   return (
     <div
       ref={canvasRef}
-      className={`flex-1 relative overflow-hidden bg-bg ${isDragging || panning ? 'select-none' : ''}`}
+      className={`flex-1 relative overflow-hidden bg-bg touch-none ${isDragging || panning ? 'select-none' : ''}`}
       style={{ cursor: panning ? 'grabbing' : isDragging ? 'grabbing' : 'default' }}
       onClick={handleCanvasClick}
       onDoubleClick={handleCanvasDoubleClick}
       onMouseDown={handleCanvasMouseDown}
+      onTouchStart={handleCanvasTouchStart}
       onWheel={handleWheel}
     >
       <CanvasBackground offsetX={offset.x} offsetY={offset.y} />
@@ -271,6 +299,7 @@ export function Canvas({ children }: CanvasProps) {
               bounds={group.bounds}
               onDragStart={(e) => startGroupDrag(date, e)}
               onArrange={() => arrangeGroup(date)}
+              onRequestPan={startPan}
             />
           )
         )}
@@ -288,6 +317,7 @@ export function Canvas({ children }: CanvasProps) {
             filters={filters}
             setFilters={setFilters}
             taskCount={taskCount}
+            onRequestPan={startPan}
           />
         )}
 
@@ -303,6 +333,7 @@ export function Canvas({ children }: CanvasProps) {
             onSelect={selectSticky}
             isEditing={editingId === sticky.id}
             onSetEditing={setEditingId}
+            onRequestPan={startPan}
           />
         ))}
 
@@ -327,6 +358,7 @@ export function Canvas({ children }: CanvasProps) {
             onSetEditing={setEditingId}
             onToggleTodo={toggleTaskTodo}
             onFocusSource={panToSticky}
+            onRequestPan={startPan}
           />
         ))}
       </div>

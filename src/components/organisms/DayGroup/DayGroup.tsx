@@ -1,13 +1,14 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
 import { LayoutGrid, Calendar, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { isToday, formatDateLabel } from '@/utils'
+import { useLongPress } from '@/hooks'
 import type { DayGroupBounds, TodoFilters, DateFilterValue } from '@/types'
 import { GROUP_PADDING } from '@/constants'
 
 interface DayGroupProps {
   date: string
   bounds: DayGroupBounds
-  onDragStart?: (e: React.MouseEvent) => void
+  onDragStart?: (e: React.MouseEvent | React.TouchEvent) => void
   onArrange?: () => void
   label?: string
   onClose?: () => void
@@ -15,6 +16,8 @@ interface DayGroupProps {
   filters?: TodoFilters
   setFilters?: React.Dispatch<React.SetStateAction<TodoFilters>>
   taskCount?: { completed: number; total: number }
+  // Called when long-press is cancelled due to movement - triggers pan
+  onRequestPan?: (e: React.TouchEvent) => void
 }
 
 const dateOptions = [
@@ -34,9 +37,11 @@ export function DayGroup({
   filters,
   setFilters,
   taskCount,
+  onRequestPan,
 }: DayGroupProps) {
   const today = isToday(date)
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false)
+  const [isLongPressing, setIsLongPressing] = useState(false)
   const dateDropdownRef = useRef<HTMLDivElement>(null)
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -44,6 +49,22 @@ export function DayGroup({
     e.stopPropagation()
     onDragStart?.(e)
   }, [onDragStart])
+
+  // Long-press hook for touch drag on group header
+  const longPress = useLongPress({
+    onLongPress: (e) => {
+      setIsLongPressing(false)
+      onDragStart?.(e)
+    },
+    onTouchStart: () => setIsLongPressing(true),
+    onTouchEnd: () => setIsLongPressing(false),
+    onMoveCancel: (e) => {
+      // Movement cancelled long-press - trigger canvas pan instead
+      onRequestPan?.(e)
+    },
+    delay: 400,
+    moveThreshold: 10
+  })
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -76,8 +97,16 @@ export function DayGroup({
         {/* Label pill with arrange button */}
         <div
           data-group-header
-          className="group flex items-center h-6 px-3 rounded-full text-xs font-bold uppercase tracking-wider cursor-grab active:cursor-grabbing bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+          className={`
+            group flex items-center h-6 px-3 rounded-full text-xs font-bold uppercase tracking-wider
+            cursor-grab active:cursor-grabbing bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300
+            transition-transform duration-200
+            ${isLongPressing ? 'scale-105' : ''}
+          `}
           onMouseDown={handleMouseDown}
+          onTouchStart={longPress.onTouchStart}
+          onTouchMove={longPress.onTouchMove}
+          onTouchEnd={longPress.onTouchEnd}
         >
           <span>{labelText}</span>
           {taskCount && (

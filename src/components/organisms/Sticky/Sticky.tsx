@@ -4,6 +4,7 @@ import { STICKY_WIDTH, TASK_STICKY_WIDTH, MIN_STICKY_HEIGHT, MIN_TASK_STICKY_HEI
 import { TiptapEditor } from '@/components/molecules/TiptapEditor'
 import { getStickyHeight } from '@/utils/textMeasurement'
 import { parseContent } from '@/utils/parseContent'
+import { useLongPress } from '@/hooks'
 import type { Sticky as StickyType, StickyColor } from '@/types'
 
 // Debug: show collision boxes (set to true to visualize)
@@ -13,7 +14,7 @@ interface StickyProps {
   sticky: StickyType
   onUpdate: (id: string, updates: Partial<StickyType>) => void
   onDelete: (id: string) => void
-  onDragStart: (id: string, e: React.MouseEvent) => void
+  onDragStart: (id: string, e: React.MouseEvent | React.TouchEvent) => void
   isSelected: boolean
   onSelect: (id: string, addToSelection?: boolean) => void
   isEditing: boolean
@@ -24,6 +25,8 @@ interface StickyProps {
   onFocusSource?: (id: string) => void
   // Direct todo data (avoids parsing content in task mode)
   todoData?: { checked: boolean; priority: number; tags: Set<string> }
+  // Called when long-press is cancelled due to movement - triggers pan
+  onRequestPan?: (e: React.TouchEvent) => void
 }
 
 export function Sticky({
@@ -39,6 +42,7 @@ export function Sticky({
   onToggleTodo,
   onFocusSource,
   todoData,
+  onRequestPan,
 }: StickyProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -46,6 +50,7 @@ export function Sticky({
   const [contentHeight, setContentHeight] = useState(0)
   const [clickCoords, setClickCoords] = useState<{ x: number; y: number } | null>(null)
   const [showColorPicker, setShowColorPicker] = useState(false)
+  const [isLongPressing, setIsLongPressing] = useState(false)
 
   const isTaskMode = variant === 'task'
   const width = isTaskMode ? TASK_STICKY_WIDTH : STICKY_WIDTH
@@ -140,6 +145,26 @@ export function Sticky({
       onDragStart(sticky.id, e)
     }
   }, [isEditing, isSelected, sticky.id, onSelect, onDragStart])
+
+  // Long-press hook for touch drag anywhere on card
+  const longPress = useLongPress({
+    onLongPress: (e) => {
+      if (isEditing) return
+      setIsLongPressing(false)
+      if (!isSelected) onSelect(sticky.id, false)
+      onDragStart(sticky.id, e)
+    },
+    onTouchStart: () => {
+      if (!isEditing) setIsLongPressing(true)
+    },
+    onTouchEnd: () => setIsLongPressing(false),
+    onMoveCancel: (e) => {
+      // Movement cancelled long-press - trigger canvas pan instead
+      onRequestPan?.(e)
+    },
+    delay: 400,
+    moveThreshold: 10
+  })
 
   const handleContentClick = useCallback((e: React.MouseEvent) => {
     if (isEditing) return
@@ -247,9 +272,10 @@ export function Sticky({
           absolute rounded-lg overflow-hidden
           ${bgClass}
           border border-gray-200 dark:border-gray-700
-          transition-shadow duration-200
+          transition-all duration-200
           ${shadowClass}
           ${completedOpacity}
+          ${isLongPressing ? 'scale-[1.02] opacity-90' : ''}
         `}
         style={{
           left: sticky.x,
@@ -260,8 +286,11 @@ export function Sticky({
           zIndex: isEditing ? 9999 : isSelected ? 100 : sticky.zIndex || 1,
         }}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={longPress.onTouchStart}
+        onTouchMove={longPress.onTouchMove}
+        onTouchEnd={longPress.onTouchEnd}
       >
-      {/* Header - drag handle */}
+      {/* Header - drag handle (mouse only, touch uses long-press on whole card) */}
       <div
         className={`
           ${isTaskMode ? 'h-4' : 'h-5'} w-full flex items-center justify-between px-2

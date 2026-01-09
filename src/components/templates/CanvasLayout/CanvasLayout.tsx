@@ -1,16 +1,18 @@
 import { useState, useCallback } from 'react'
-import { useStickies } from '@/hooks'
+import { useStickies, useIsMobile } from '@/hooks'
 import { Canvas } from '@/components/organisms/Canvas'
 import { TodoPane } from '@/components/organisms/TodoPane'
 import { Toolbar } from '@/components/organisms/Toolbar'
+import { BottomSheet } from '@/components/molecules'
 
 export function CanvasLayout() {
-  const { stickies, toggleTodo, panToSticky, filters, setFilters, showTasks, taskViewMode } = useStickies()
+  const { stickies, toggleTodo, panToSticky, filters, setFilters, showTasks, setShowTasks, taskViewMode } = useStickies()
   const [paneWidth, setPaneWidth] = useState(320)
   const [isResizing, setIsResizing] = useState(false)
+  const isMobile = useIsMobile()
 
-  // Show panel when tasks visible AND in panel mode
-  const showPanel = showTasks && taskViewMode === 'panel'
+  // Show panel when tasks visible AND in panel mode AND not mobile
+  const showPanel = showTasks && taskViewMode === 'panel' && !isMobile
 
   const handleResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -62,6 +64,22 @@ export function CanvasLayout() {
             />
           </div>
         </>
+      )}
+
+      {/* Mobile bottom sheet for tasks */}
+      {isMobile && (
+        <BottomSheet
+          isOpen={showTasks}
+          onClose={() => setShowTasks(false)}
+        >
+          <TodoPane
+            stickies={stickies}
+            onToggle={toggleTodo}
+            onFocusSticky={panToSticky}
+            filters={filters}
+            setFilters={setFilters}
+          />
+        </BottomSheet>
       )}
     </div>
   )

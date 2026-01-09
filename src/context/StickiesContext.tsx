@@ -50,15 +50,15 @@ interface StickiesContextValue {
   setEditingId: (id: string | null) => void
 
   // Drag operations
-  startDrag: (id: string, e: React.MouseEvent) => void
-  startGroupDrag: (date: string, e: React.MouseEvent) => void
-  updateDrag: (e: MouseEvent) => void
+  startDrag: (id: string, e: React.MouseEvent | React.TouchEvent) => void
+  startGroupDrag: (date: string, e: React.MouseEvent | React.TouchEvent) => void
+  updateDrag: (e: MouseEvent | TouchEvent) => void
   endDrag: () => void
   arrangeGroup: (date: string, visibleIds?: Set<string>) => void
 
   // Pan operations
-  startPan: (e: React.MouseEvent) => void
-  updatePan: (e: MouseEvent) => void
+  startPan: (e: React.MouseEvent | React.TouchEvent) => void
+  updatePan: (e: MouseEvent | TouchEvent) => void
   endPan: () => void
   setOffset: React.Dispatch<React.SetStateAction<PanState>>
 
@@ -380,7 +380,11 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   const [drag, setDrag] = useState<DragState | null>(null)
   const [offset, setOffset] = useState<PanState>({ x: 0, y: 0 })
   const [panning, setPanning] = useState(false)
-  const [panStart, setPanStart] = useState<PanState | null>(null)
+  // Use ref instead of state for panStart to avoid re-render delays between touch events
+  const panStartRef = useRef<PanState | null>(null)
+  // Momentum tracking for natural panning
+  const velocityRef = useRef({ x: 0, y: 0 })
+  const lastMoveTimeRef = useRef(0)
   // Load config from shared localStorage key
   const initialConfig = loadConfig()
   const [filters, setFilters] = useState<TodoFilters>({
@@ -758,8 +762,19 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     setEditingId(null)
   }, [pushHistory])
 
+  // Helper to extract coordinates from mouse or touch event
+  const getEventCoords = useCallback((e: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) => {
+    if ('touches' in e && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    }
+    if ('changedTouches' in e && e.changedTouches.length > 0) {
+      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY }
+    }
+    return { x: (e as MouseEvent).clientX, y: (e as MouseEvent).clientY }
+  }, [])
+
   // Drag operations
-  const startDrag = useCallback((id: string, e: React.MouseEvent) => {
+  const startDrag = useCallback((id: string, e: React.MouseEvent | React.TouchEvent) => {
     // Determine which stickies to drag:
     // If clicked sticky is in selection AND selection has multiple -> drag ALL selected
     // Otherwise -> drag just the clicked sticky
@@ -774,17 +789,18 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       .map(s => ({ id: s.id, origX: s.x, origY: s.y }))
 
     if (draggedStickies.length > 0) {
+      const coords = getEventCoords(e)
       setDrag({
         leaderId: id,
-        startX: e.clientX,
-        startY: e.clientY,
+        startX: coords.x,
+        startY: coords.y,
         stickies: draggedStickies
       })
     }
-  }, [stickies, selectedIds])
+  }, [stickies, selectedIds, getEventCoords])
 
   // Start dragging all stickies in a date group
-  const startGroupDrag = useCallback((date: string, e: React.MouseEvent) => {
+  const startGroupDrag = useCallback((date: string, e: React.MouseEvent | React.TouchEvent) => {
     // Find all stickies with this date
     const groupStickies = stickies.filter(s => s.date === date)
 
@@ -799,13 +815,14 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }))
 
     // Set drag state even for empty groups (prevents text selection, shows drag cursor)
+    const coords = getEventCoords(e)
     setDrag({
       leaderId: groupStickies[0]?.id ?? '',
-      startX: e.clientX,
-      startY: e.clientY,
+      startX: coords.x,
+      startY: coords.y,
       stickies: draggedStickies
     })
-  }, [stickies])
+  }, [stickies, getEventCoords])
 
   // Compact all stickies in a group - slide each card towards top-left with minimum movement
   // Optional visibleIds param: if provided, only arrange those IDs (for filtered views)
@@ -952,12 +969,15 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }
   }, [showTasks, taskViewMode, arrangeGroup, stickies, filters])
 
-  const updateDrag = useCallback((e: MouseEvent) => {
+  const updateDrag = useCallback((e: MouseEvent | TouchEvent) => {
     if (!drag) return
 
+    // Get coordinates from mouse or touch event
+    const coords = getEventCoords(e)
+
     // Calculate movement delta
-    const deltaX = e.clientX - drag.startX
-    const deltaY = e.clientY - drag.startY
+    const deltaX = coords.x - drag.startX
+    const deltaY = coords.y - drag.startY
 
     // Calculate new positions for all dragged stickies (allow free movement)
     const newPositions = drag.stickies.map(ds => ({
@@ -979,7 +999,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         return newPos ? { ...s, x: newPos.x, y: newPos.y } : s
       }))
     }
-  }, [drag, stickies])
+  }, [drag, stickies, getEventCoords])
 
   const endDrag = useCallback(() => {
     if (drag) {
@@ -1127,24 +1147,70 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   }, [drag, stickies, pushHistory])
 
   // Pan operations
-  const startPan = useCallback((e: React.MouseEvent) => {
+  const startPan = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    const coords = getEventCoords(e)
     setPanning(true)
-    setPanStart({ x: e.clientX, y: e.clientY })
-  }, [])
+    panStartRef.current = coords
+    velocityRef.current = { x: 0, y: 0 }
+    lastMoveTimeRef.current = performance.now()
+  }, [getEventCoords])
 
-  const updatePan = useCallback((e: MouseEvent) => {
-    if (!panning || !panStart) return
+  const updatePan = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!panning || !panStartRef.current) return
 
+    const coords = getEventCoords(e)
+    const dx = coords.x - panStartRef.current.x
+    const dy = coords.y - panStartRef.current.y
+
+    // Update offset
     setOffset(prev => ({
-      x: prev.x + e.clientX - panStart.x,
-      y: prev.y + e.clientY - panStart.y
+      x: prev.x + dx,
+      y: prev.y + dy
     }))
-    setPanStart({ x: e.clientX, y: e.clientY })
-  }, [panning, panStart])
+
+    // Track velocity for momentum
+    const now = performance.now()
+    const dt = now - lastMoveTimeRef.current
+    if (dt > 0 && dt < 100) {
+      // Smooth velocity calculation
+      const newVx = dx / dt * 16 // Normalize to ~60fps frame time
+      const newVy = dy / dt * 16
+      // Blend with previous velocity for smoother momentum
+      velocityRef.current = {
+        x: velocityRef.current.x * 0.5 + newVx * 0.5,
+        y: velocityRef.current.y * 0.5 + newVy * 0.5
+      }
+    }
+    lastMoveTimeRef.current = now
+    panStartRef.current = coords
+  }, [panning, getEventCoords])
 
   const endPan = useCallback(() => {
     setPanning(false)
-    setPanStart(null)
+    panStartRef.current = null
+
+    // Apply momentum if there's significant velocity
+    const velocity = velocityRef.current
+    if (Math.abs(velocity.x) > 0.5 || Math.abs(velocity.y) > 0.5) {
+      let vx = velocity.x
+      let vy = velocity.y
+      const friction = 0.95
+
+      const animate = () => {
+        if (Math.abs(vx) < 0.1 && Math.abs(vy) < 0.1) return
+
+        setOffset(prev => ({
+          x: prev.x + vx,
+          y: prev.y + vy
+        }))
+
+        vx *= friction
+        vy *= friction
+        requestAnimationFrame(animate)
+      }
+      requestAnimationFrame(animate)
+    }
+    velocityRef.current = { x: 0, y: 0 }
   }, [])
 
   // Todo toggle - works with Tiptap HTML and legacy markdown
@@ -1363,7 +1429,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     drag,
     offset,
     panning,
-    panStart,
+    panStart: panStartRef.current,
     filters,
     showTasks,
     taskViewMode,

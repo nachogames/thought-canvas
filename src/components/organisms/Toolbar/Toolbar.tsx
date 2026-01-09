@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Plus, Undo2, Redo2, Trash2, ListTodo, Sun, Moon, PanelRight, Layers, ChevronDown } from 'lucide-react'
-import { useStickies, useTheme } from '@/hooks'
+import { useStickies, useTheme, useIsMobile } from '@/hooks'
 import { DataMenu } from '@/components/molecules'
 
 function Divider() {
@@ -24,6 +24,10 @@ export function Toolbar() {
   } = useStickies()
   const [showTaskMenu, setShowTaskMenu] = useState(false)
   const taskMenuRef = useRef<HTMLDivElement>(null)
+  const isMobile = useIsMobile()
+
+  // Hide toolbar when bottom sheet is open on mobile
+  const isHidden = isMobile && showTasks
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -53,14 +57,16 @@ export function Toolbar() {
   return (
     <>
       {/* Centered pill toolbar */}
-      <div className="
+      <div className={`
         fixed bottom-6 left-1/2 -translate-x-1/2 z-50
         bg-white dark:bg-gray-800
         shadow-lg rounded-full
         px-3 py-2
         flex items-center gap-2
         border border-gray-200 dark:border-gray-700
-      ">
+        transition-all duration-300
+        ${isHidden ? 'translate-y-20 opacity-0 pointer-events-none' : ''}
+      `}>
         {/* New Note */}
         <button
           onClick={handleNewNote}
@@ -175,15 +181,16 @@ export function Toolbar() {
         )}
       </div>
 
-      {/* Subtle help text */}
-      <div className="
+      {/* Subtle help text - hidden on mobile */}
+      <div className={`
         fixed top-4 left-4 z-10
         text-xs text-gray-400/70 dark:text-gray-500/70
         bg-white/50 dark:bg-black/30
         backdrop-blur-sm
         px-2.5 py-1.5 rounded-md
         pointer-events-none
-      ">
+        ${isMobile ? 'hidden' : ''}
+      `}>
         Double-click to create • Drag to pan • / for commands
       </div>
     </>
