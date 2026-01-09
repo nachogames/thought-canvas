@@ -175,13 +175,15 @@ export function Sticky({
     if (isEditing) return
     e.stopPropagation()
 
+    const isMultiSelect = e.metaKey || e.ctrlKey
+
     // Check if content is empty (just whitespace or empty HTML)
     const tempDiv = document.createElement('div')
     tempDiv.innerHTML = sticky.content
     const isEmpty = !tempDiv.textContent?.trim()
 
-    // For empty notes, go straight to edit mode
-    if (isEmpty) {
+    // For empty notes, go straight to edit mode (unless multi-selecting)
+    if (isEmpty && !isMultiSelect) {
       if (!isSelected) {
         onSelect(sticky.id, false)
       }
@@ -191,7 +193,7 @@ export function Sticky({
     }
 
     if (!isSelected) {
-      onSelect(sticky.id, e.metaKey || e.ctrlKey)
+      onSelect(sticky.id, isMultiSelect)
     } else {
       // Capture click coordinates for cursor positioning
       setClickCoords({ x: e.clientX, y: e.clientY })
