@@ -9,8 +9,7 @@ function Divider() {
 
 export function Toolbar() {
   const {
-    createSticky,
-    offset,
+    createStickyInTodayGroup,
     undo,
     redo,
     canUndo,
@@ -44,9 +43,7 @@ export function Toolbar() {
   const { isDark, toggleTheme } = useTheme()
 
   const handleNewNote = () => {
-    const centerX = window.innerWidth / 2 - offset.x
-    const centerY = window.innerHeight / 2 - offset.y
-    createSticky(centerX, centerY)
+    createStickyInTodayGroup()
   }
 
   const handleDeleteSelected = () => {

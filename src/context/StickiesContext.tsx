@@ -43,6 +43,7 @@ interface StickiesContextValue {
 
   // Sticky operations
   createSticky: (x: number, y: number) => void
+  createStickyInTodayGroup: () => void
   updateSticky: (id: string, updates: Partial<Sticky>) => void
   deleteSticky: (id: string) => void
   deleteSelectedStickies: () => void
@@ -631,6 +632,93 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     editingContentRef.current = { id: newSticky.id, content: '' }
     setEditingId(newSticky.id)
   }, [offset, stickies, pushHistory])
+
+  // Create a sticky with smart placement in today's group
+  const createStickyInTodayGroup = useCallback(() => {
+    const todayDate = new Date().toISOString().split('T')[0]
+    const todayStickies = stickies.filter(s => s.date === todayDate)
+
+    let newX: number
+    let newY: number
+
+    if (todayStickies.length === 0) {
+      // No today stickies - place at viewport center
+      newX = snap(window.innerWidth / 2 - offset.x - STICKY_WIDTH / 2)
+      newY = snap(window.innerHeight / 2 - offset.y - MIN_STICKY_HEIGHT / 2)
+    } else {
+      // Find bounding box of today's group
+      let minX = Infinity, minY = Infinity
+      let maxX = -Infinity, maxY = -Infinity
+
+      todayStickies.forEach(s => {
+        const height = getStickyHeight(s.content, s.measuredHeight)
+        minX = Math.min(minX, s.x)
+        minY = Math.min(minY, s.y)
+        maxX = Math.max(maxX, s.x + STICKY_WIDTH)
+        maxY = Math.max(maxY, s.y + height)
+      })
+
+      // Try to place to the right of existing stickies
+      newX = snap(maxX + STICKY_GAP)
+      newY = snap(minY)
+
+      // Check if this would overlap any existing sticky
+      const wouldOverlap = (testX: number, testY: number) => {
+        const newRect = getExpandedRect(testX, testY, STICKY_WIDTH, MIN_STICKY_HEIGHT)
+        return todayStickies.some(s => {
+          const h = getStickyHeight(s.content, s.measuredHeight)
+          const sr = getExpandedRect(s.x, s.y, STICKY_WIDTH, h)
+          return !(newRect.r <= sr.l || newRect.l >= sr.r || newRect.b <= sr.t || newRect.t >= sr.b)
+        })
+      }
+
+      // If right side overlaps or would make row too wide (>3 cards), try below
+      const maxRowWidth = (STICKY_WIDTH + STICKY_GAP) * 3
+      if (wouldOverlap(newX, newY) || (newX - minX) >= maxRowWidth) {
+        newX = snap(minX)
+        newY = snap(maxY + STICKY_GAP)
+      }
+
+      // Keep trying positions if still overlapping
+      let attempts = 0
+      while (wouldOverlap(newX, newY) && attempts < 20) {
+        newX = snap(newX + STICKY_WIDTH + STICKY_GAP)
+        if ((newX - minX) >= maxRowWidth) {
+          newX = snap(minX)
+          newY = snap(newY + MIN_STICKY_HEIGHT + STICKY_GAP)
+        }
+        attempts++
+      }
+    }
+
+    const newSticky: Sticky = {
+      id: Date.now().toString(),
+      content: '',
+      x: newX,
+      y: newY,
+      date: todayDate,
+      zIndex: stickies.length + 1
+    }
+
+    const newStickies = [...stickies, newSticky]
+    pushHistory(newStickies)
+    setStickies(newStickies)
+    setSelectedIds(new Set([newSticky.id]))
+    editingContentRef.current = { id: newSticky.id, content: '' }
+    setEditingId(newSticky.id)
+
+    // Pan to show the new sticky if it's off-screen
+    const stickyScreenX = newX + offset.x
+    const stickyScreenY = newY + offset.y
+    const margin = 100
+    if (stickyScreenX < margin || stickyScreenX > window.innerWidth - STICKY_WIDTH - margin ||
+        stickyScreenY < margin || stickyScreenY > window.innerHeight - MIN_STICKY_HEIGHT - margin) {
+      setOffset({
+        x: -newX + window.innerWidth / 2 - STICKY_WIDTH / 2,
+        y: -newY + window.innerHeight / 2 - MIN_STICKY_HEIGHT / 2
+      })
+    }
+  }, [offset, stickies, pushHistory, setOffset])
 
   // Track current editing id synchronously (refs update immediately, state is async)
   const editingIdRef = useRef<string | null>(null)
@@ -1575,6 +1663,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     canUndo,
     canRedo,
     createSticky,
+    createStickyInTodayGroup,
     updateSticky,
     deleteSticky,
     deleteSelectedStickies,
