@@ -48,7 +48,7 @@ interface StickiesContextValue {
   deleteSelectedStickies: () => void
   selectSticky: (id: string | null, addToSelection?: boolean) => void
   clearAllStickies: () => void
-  setEditingId: (id: string | null) => void
+  setEditingId: (id: string | null, sourceId?: string) => void
 
   // Drag operations
   startDrag: (id: string, e: React.MouseEvent | React.TouchEvent) => void
@@ -632,8 +632,16 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     setEditingId(newSticky.id)
   }, [offset, stickies, pushHistory])
 
+  // Track current editing id synchronously (refs update immediately, state is async)
+  const editingIdRef = useRef<string | null>(null)
+
   // When editing starts, capture the original content
-  const setEditingIdWithHistory = useCallback((id: string | null) => {
+  const setEditingIdWithHistory = useCallback((id: string | null, sourceId?: string) => {
+    // Ignore stale blur events: if clearing and the source card isn't the current editing card
+    if (id === null && sourceId && editingIdRef.current !== sourceId) {
+      return
+    }
+
     // If we're ending editing and content changed, push to history
     if (editingContentRef.current && editingContentRef.current.id && id !== editingContentRef.current.id) {
       const sticky = stickies.find(s => s.id === editingContentRef.current!.id)
@@ -653,6 +661,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       }
     }
 
+    editingIdRef.current = id
     setEditingId(id)
   }, [stickies, pushHistory])
 

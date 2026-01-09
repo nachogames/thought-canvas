@@ -18,7 +18,7 @@ interface StickyProps {
   isSelected: boolean
   onSelect: (id: string, addToSelection?: boolean) => void
   isEditing: boolean
-  onSetEditing: (id: string | null) => void
+  onSetEditing: (id: string | null, sourceId?: string) => void
   // Task mode props
   variant?: 'note' | 'task'
   onToggleTodo?: (id: string) => void
@@ -132,8 +132,10 @@ export function Sticky({
   }, [sticky.id, onUpdate])
 
   const handleBlur = useCallback(() => {
-    onSetEditing(null)
-  }, [onSetEditing])
+    // Pass our id so context can ignore stale blur events
+    // (when clicking another card, blur fires after the new card starts editing)
+    onSetEditing(null, sticky.id)
+  }, [onSetEditing, sticky.id])
 
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
     if (isEditing) return
