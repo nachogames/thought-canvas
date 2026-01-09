@@ -172,34 +172,24 @@ export function Sticky({
   })
 
   const handleContentClick = useCallback((e: React.MouseEvent) => {
-    if (isEditing) return
+    if (isEditing) return // This card is being edited, let TiptapEditor handle clicks
     e.stopPropagation()
 
     const isMultiSelect = e.metaKey || e.ctrlKey
 
-    // Check if content is empty (just whitespace or empty HTML)
-    const tempDiv = document.createElement('div')
-    tempDiv.innerHTML = sticky.content
-    const isEmpty = !tempDiv.textContent?.trim()
-
-    // For empty notes, go straight to edit mode (unless multi-selecting)
-    if (isEmpty && !isMultiSelect) {
+    if (isMultiSelect) {
+      // Multi-select: exit any edit mode, toggle selection
+      onSetEditing(null)
+      onSelect(sticky.id, true)
+    } else {
+      // Single click: select and enter edit mode
       if (!isSelected) {
         onSelect(sticky.id, false)
       }
       setClickCoords({ x: e.clientX, y: e.clientY })
       onSetEditing(sticky.id)
-      return
     }
-
-    if (!isSelected) {
-      onSelect(sticky.id, isMultiSelect)
-    } else {
-      // Capture click coordinates for cursor positioning
-      setClickCoords({ x: e.clientX, y: e.clientY })
-      onSetEditing(sticky.id)
-    }
-  }, [isEditing, isSelected, sticky.id, sticky.content, onSelect, onSetEditing])
+  }, [isEditing, isSelected, sticky.id, onSelect, onSetEditing])
 
   const handleContentMouseDown = useCallback((e: React.MouseEvent) => {
     if (isEditing) return
