@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
-import { Plus, Undo2, Redo2, Trash2, ListTodo, Sun, Moon, PanelRight, Layers, ChevronDown } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Plus, Undo2, Redo2, Trash2, ListTodo, Sun, Moon, PanelRight, Layers, ChevronDown, Crosshair } from 'lucide-react'
+import { STICKY_WIDTH, MIN_STICKY_HEIGHT } from '@/constants'
 import { useStickies, useTheme, useIsMobile } from '@/hooks'
 import { DataMenu } from '@/components/molecules'
 
@@ -9,8 +10,10 @@ function Divider() {
 
 export function Toolbar() {
   const {
+    stickies,
     createSticky,
     offset,
+    setOffset,
     undo,
     redo,
     canUndo,
@@ -54,6 +57,31 @@ export function Toolbar() {
     }
   }
 
+  const handleGoToToday = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const todayStickies = stickies.filter(s => s.date === today)
+
+    if (todayStickies.length === 0) return
+
+    // Calculate center of today's stickies
+    const minX = Math.min(...todayStickies.map(s => s.x))
+    const maxX = Math.max(...todayStickies.map(s => s.x)) + STICKY_WIDTH
+    const minY = Math.min(...todayStickies.map(s => s.y))
+    const maxY = Math.max(...todayStickies.map(s => s.y + (s.measuredHeight || MIN_STICKY_HEIGHT)))
+
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+
+    // Pan to center
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+
+    setOffset({
+      x: -centerX + viewportWidth / 2,
+      y: -centerY + viewportHeight / 2
+    })
+  }, [stickies, setOffset])
+
   return (
     <>
       {/* Centered pill toolbar */}
@@ -74,6 +102,15 @@ export function Toolbar() {
           title="New Note"
         >
           <Plus size={20} />
+        </button>
+
+        {/* Go to Today */}
+        <button
+          onClick={handleGoToToday}
+          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          title="Go to Today"
+        >
+          <Crosshair size={18} />
         </button>
 
         <Divider />
@@ -98,14 +135,15 @@ export function Toolbar() {
 
         <Divider />
 
-        {/* Tasks with dropdown */}
+        {/* Tasks with dropdown (dropdown hidden on mobile) */}
         <div className="relative" ref={taskMenuRef}>
           <div className="flex items-center h-[34px]">
             {/* Main toggle button */}
             <button
               onClick={() => setShowTasks(prev => !prev)}
               className={`
-                h-full px-2 flex items-center rounded-l-full transition-colors
+                h-full px-2 flex items-center transition-colors
+                ${isMobile ? 'rounded-full' : 'rounded-l-full'}
                 ${showTasks
                   ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
                   : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -115,24 +153,26 @@ export function Toolbar() {
             >
               <ListTodo size={18} />
             </button>
-            {/* Dropdown trigger */}
-            <button
-              onClick={() => setShowTaskMenu(prev => !prev)}
-              className={`
-                h-full px-1.5 flex items-center rounded-r-full transition-colors
-                ${showTasks
-                  ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                }
-              `}
-              title="Task view options"
-            >
-              <ChevronDown size={14} />
-            </button>
+            {/* Dropdown trigger - desktop only */}
+            {!isMobile && (
+              <button
+                onClick={() => setShowTaskMenu(prev => !prev)}
+                className={`
+                  h-full px-1.5 flex items-center rounded-r-full transition-colors
+                  ${showTasks
+                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+                  }
+                `}
+                title="Task view options"
+              >
+                <ChevronDown size={14} />
+              </button>
+            )}
           </div>
 
-          {/* Dropdown menu */}
-          {showTaskMenu && (
+          {/* Dropdown menu - desktop only */}
+          {!isMobile && showTaskMenu && (
             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]">
               <button
                 onClick={() => { setTaskViewMode('panel'); setShowTaskMenu(false) }}

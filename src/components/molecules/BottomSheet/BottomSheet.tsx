@@ -82,20 +82,38 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
     dragFromContentRef.current = false
   }, [handleDragEnd])
 
+  // Find the nearest scrollable parent of an element
+  const findScrollableParent = useCallback((element: HTMLElement | null): HTMLElement | null => {
+    if (!element) return null
+
+    let current: HTMLElement | null = element
+    while (current) {
+      const style = window.getComputedStyle(current)
+      const overflowY = style.overflowY
+      if ((overflowY === 'auto' || overflowY === 'scroll') && current.scrollHeight > current.clientHeight) {
+        return current
+      }
+      current = current.parentElement
+    }
+    return null
+  }, [])
+
   // Touch handlers for content area (scroll-aware drag to close)
   const handleContentTouchStart = useCallback((e: React.TouchEvent) => {
-    const content = contentRef.current
-    if (!content) return
+    // Find the actual scrollable element from touch target
+    const scrollable = findScrollableParent(e.target as HTMLElement)
 
-    // Check if we're at the top of scroll
-    if (content.scrollTop <= 0) {
-      dragFromContentRef.current = true
+    // Only allow drag-to-close if scrollable is at top (or no scrollable found)
+    const atScrollTop = !scrollable || scrollable.scrollTop <= 0
+    dragFromContentRef.current = atScrollTop
+
+    if (atScrollTop) {
       dragStartY.current = e.touches[0].clientY
       if (sheetRef.current) {
         sheetHeight.current = sheetRef.current.offsetHeight
       }
     }
-  }, [])
+  }, [findScrollableParent])
 
   const handleContentTouchMove = useCallback((e: React.TouchEvent) => {
     // Only handle if touch started at scroll top
