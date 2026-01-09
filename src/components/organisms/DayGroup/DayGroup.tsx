@@ -18,6 +18,8 @@ interface DayGroupProps {
   taskCount?: { completed: number; total: number }
   // Called when long-press is cancelled due to movement - triggers pan
   onRequestPan?: (e: React.TouchEvent) => void
+  // Disable transitions during drag
+  isDragging?: boolean
 }
 
 const dateOptions = [
@@ -38,6 +40,7 @@ export function DayGroup({
   setFilters,
   taskCount,
   onRequestPan,
+  isDragging = false,
 }: DayGroupProps) {
   const today = isToday(date)
   const isMobile = useIsMobile()
@@ -102,7 +105,7 @@ export function DayGroup({
           className={`
             group flex items-center h-6 px-3 rounded-full text-xs font-bold uppercase tracking-wider
             cursor-grab active:cursor-grabbing bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300
-            transition-transform duration-200
+            ${isDragging ? '' : 'transition-transform duration-200'}
             ${isLongPressing ? 'scale-105' : ''}
           `}
           onMouseDown={handleMouseDown}

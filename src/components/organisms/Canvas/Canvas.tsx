@@ -354,6 +354,7 @@ export function Canvas({ children }: CanvasProps) {
               onDragStart={(e) => startGroupDrag(date, e)}
               onArrange={() => arrangeGroup(date)}
               onRequestPan={startPan}
+              isDragging={isDragging}
             />
           )
         )}
@@ -372,6 +373,7 @@ export function Canvas({ children }: CanvasProps) {
             setFilters={setFilters}
             taskCount={taskCount}
             onRequestPan={startPan}
+            isDragging={isDragging}
           />
         )}
 
@@ -388,6 +390,7 @@ export function Canvas({ children }: CanvasProps) {
             isEditing={editingId === sticky.id}
             onSetEditing={setEditingId}
             onRequestPan={startPan}
+            isDragging={isDragging}
           />
         ))}
 
@@ -413,6 +416,7 @@ export function Canvas({ children }: CanvasProps) {
             onToggleTodo={toggleTaskTodo}
             onFocusSource={panToSticky}
             onRequestPan={startPan}
+            isDragging={isDragging}
           />
         ))}
       </div>
@@ -486,6 +490,13 @@ export function Canvas({ children }: CanvasProps) {
                   <div className="flex items-center justify-between">
                     <span className="text-gray-600 dark:text-gray-400">Center on today</span>
                     <kbd className="key">0</kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Previous / Next day</span>
+                    <div className="flex gap-0.5">
+                      <kbd className="key">←</kbd>
+                      <kbd className="key">→</kbd>
+                    </div>
                   </div>
                 </div>
 

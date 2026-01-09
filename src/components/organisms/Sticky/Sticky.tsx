@@ -27,6 +27,8 @@ interface StickyProps {
   todoData?: { checked: boolean; priority: number; tags: Set<string> }
   // Called when long-press is cancelled due to movement - triggers pan
   onRequestPan?: (e: React.TouchEvent) => void
+  // Disable transitions during drag
+  isDragging?: boolean
 }
 
 export function Sticky({
@@ -43,6 +45,7 @@ export function Sticky({
   onFocusSource,
   todoData,
   onRequestPan,
+  isDragging = false,
 }: StickyProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -275,7 +278,7 @@ export function Sticky({
           absolute rounded-lg overflow-hidden
           ${bgClass}
           border border-gray-200 dark:border-gray-700
-          transition-all duration-200
+          ${isDragging ? '' : 'transition-all duration-200'}
           ${shadowClass}
           ${completedOpacity}
           ${isLongPressing ? 'scale-[1.02] opacity-90' : ''}

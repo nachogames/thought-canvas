@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useRef,
+  useMemo,
   type ReactNode,
 } from 'react'
 import type { Sticky, DragState, PanState, TodoFilters, ThoughtCanvasExport, ImportMode, TasksGroupState } from '@/types'
@@ -349,6 +350,17 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }
     return {}
   })
+
+  // Day navigation state
+  const [focusedDayIndex, setFocusedDayIndex] = useState<number | null>(null)
+
+  // Get sorted unique days (oldest to newest), excluding task group
+  const sortedDays = useMemo(() => {
+    const days = new Set(stickies
+      .filter(s => s.date !== TASKS_GROUP_DATE)
+      .map(s => s.date))
+    return Array.from(days).sort()
+  }, [stickies])
 
   // Save to localStorage whenever stickies change (excluding task stickies)
   useEffect(() => {
@@ -867,18 +879,17 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     setStickies(newStickies)
   }, [stickies, pushHistory])
 
-  // Center viewport on today's stickies
-  const centerOnToday = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0]
-    const todayStickies = stickies.filter(s => s.date === today)
+  // Center viewport on stickies for a specific day
+  const centerOnDay = useCallback((date: string) => {
+    const dayStickies = stickies.filter(s => s.date === date && s.date !== TASKS_GROUP_DATE)
 
-    if (todayStickies.length === 0) return
+    if (dayStickies.length === 0) return
 
-    // Calculate center of today's stickies
-    const minX = Math.min(...todayStickies.map(s => s.x))
-    const maxX = Math.max(...todayStickies.map(s => s.x)) + STICKY_WIDTH
-    const minY = Math.min(...todayStickies.map(s => s.y))
-    const maxY = Math.max(...todayStickies.map(s => s.y + (s.measuredHeight || MIN_STICKY_HEIGHT)))
+    // Calculate center of the day's stickies
+    const minX = Math.min(...dayStickies.map(s => s.x))
+    const maxX = Math.max(...dayStickies.map(s => s.x)) + STICKY_WIDTH
+    const minY = Math.min(...dayStickies.map(s => s.y))
+    const maxY = Math.max(...dayStickies.map(s => s.y + (s.measuredHeight || MIN_STICKY_HEIGHT)))
 
     const centerX = (minX + maxX) / 2
     const centerY = (minY + maxY) / 2
@@ -892,6 +903,14 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       y: -centerY + viewportHeight / 2
     })
   }, [stickies, setOffset])
+
+  // Center viewport on today's stickies and reset day navigation
+  const centerOnToday = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const todayIndex = sortedDays.indexOf(today)
+    setFocusedDayIndex(todayIndex >= 0 ? todayIndex : null)
+    centerOnDay(today)
+  }, [centerOnDay, sortedDays])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -938,11 +957,47 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         centerOnToday()
         return
       }
+
+      // Arrow keys: Navigate between days (only if not editing)
+      if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !editingId && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault()
+
+        if (sortedDays.length === 0) return
+
+        // Initialize to today's index if not set
+        let currentIndex = focusedDayIndex
+        if (currentIndex === null) {
+          const today = new Date().toISOString().split('T')[0]
+          currentIndex = sortedDays.indexOf(today)
+          if (currentIndex === -1) {
+            // Find closest day to today
+            currentIndex = sortedDays.findIndex(d => d >= today)
+            if (currentIndex === -1) currentIndex = sortedDays.length - 1
+          }
+        }
+
+        // Navigate with wrapping
+        const today = new Date().toISOString().split('T')[0]
+        const todayIndex = sortedDays.indexOf(today)
+        const effectiveTodayIndex = todayIndex >= 0 ? todayIndex : sortedDays.length - 1
+
+        if (e.key === 'ArrowLeft') {
+          // At oldest (index 0), wrap to today
+          currentIndex = currentIndex === 0 ? effectiveTodayIndex : currentIndex - 1
+        } else {
+          // At today (or end), wrap to oldest
+          currentIndex = currentIndex >= effectiveTodayIndex ? 0 : currentIndex + 1
+        }
+
+        setFocusedDayIndex(currentIndex)
+        centerOnDay(sortedDays[currentIndex])
+        return
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, editingId, selectedIds, stickies, pushHistory, arrangeGroup, centerOnToday])
+  }, [undo, redo, editingId, selectedIds, stickies, pushHistory, arrangeGroup, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
 
   // Auto-arrange task stickies when overlay first opens
   useEffect(() => {
