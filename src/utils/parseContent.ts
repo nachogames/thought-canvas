@@ -75,6 +75,33 @@ export function parseContent(content: string): ParsedContent {
 }
 
 /**
+ * Get text content from DOM with proper spacing between block elements
+ */
+function getTextWithSpacing(element: Element): string {
+  const parts: string[] = []
+
+  element.childNodes.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.textContent || '')
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element
+      const tagName = el.tagName.toLowerCase()
+      // Add space before block elements
+      if (['p', 'div', 'li', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+        parts.push(' ')
+      }
+      parts.push(getTextWithSpacing(el))
+      // Add space after block elements
+      if (['p', 'div', 'li', 'ul', 'ol', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tagName)) {
+        parts.push(' ')
+      }
+    }
+  })
+
+  return parts.join('')
+}
+
+/**
  * Parse Tiptap HTML content to extract todos, tags, and priority
  */
 function parseHtmlContent(html: string): ParsedContent {
@@ -86,14 +113,14 @@ function parseHtmlContent(html: string): ParsedContent {
   const parser = new DOMParser()
   const doc = parser.parseFromString(html, 'text/html')
 
-  // Extract all tags from entire content
-  const fullText = doc.body.textContent || ''
+  // Extract all tags from entire content (with proper spacing to avoid merging across elements)
+  const fullText = getTextWithSpacing(doc.body)
   const tagMatches = fullText.match(/#(\w+)/g)
   if (tagMatches) {
     tagMatches.forEach(t => tags.add(t.slice(1)))
   }
 
-  // Extract priority from entire content
+  // Extract card-level priority from entire content
   const priorityMatch = fullText.match(PRIORITY_REGEX)
   if (priorityMatch) {
     priority = priorityMatch[1].length
@@ -113,9 +140,9 @@ function parseHtmlContent(html: string): ParsedContent {
       todoTagMatches.forEach(t => todoTags.add(t.slice(1)))
     }
 
-    // Extract priority from this todo
+    // Extract priority from this todo (falls back to card-level priority)
     const todoPriorityMatch = text.match(PRIORITY_REGEX)
-    const todoPriority = todoPriorityMatch ? todoPriorityMatch[1].length : 0
+    const todoPriority = todoPriorityMatch ? todoPriorityMatch[1].length : priority
 
     todos.push({
       lineIndex: idx,

@@ -25,8 +25,8 @@ export const MIN_LINES = 2
 export const MIN_STICKY_HEIGHT = MIN_LINES * LINE_HEIGHT + STICKY_PADDING * 2  // 2 * 26 + 36 = 88
 export const MIN_TASK_STICKY_HEIGHT = 60  // Smaller min height for task cards
 
-// Group container - even 24px padding on all sides, label positioned above
-export const GROUP_PADDING = 24
+// Group container - padding on all sides, label positioned above (must be grid-aligned)
+export const GROUP_PADDING = 16  // Same as GRID_SIZE for consistent spacing
 
 // Z-index scale
 export const Z_INDEX = {

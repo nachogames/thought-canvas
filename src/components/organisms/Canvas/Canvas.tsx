@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react'
 import { Crosshair } from 'lucide-react'
 import { useStickies } from '@/hooks'
-import { STICKY_WIDTH, GRID_SIZE } from '@/constants'
+import { STICKY_WIDTH } from '@/constants'
 import { IconButton } from '@/components/atoms/Button'
 import { CanvasBackground } from './CanvasBackground'
 import { Sticky } from '../Sticky'
@@ -70,6 +70,13 @@ export function Canvas({ children }: CanvasProps) {
     total: taskStickies.length
   }), [taskStickies])
 
+  // Create a key that changes when any sticky's measuredHeight changes
+  // This ensures bounds recalculate after Sticky components measure themselves
+  const measuredHeightsKey = useMemo(() =>
+    regularStickies.map(s => s.measuredHeight ?? 0).join(','),
+    [regularStickies]
+  )
+
   // Calculate day groups with bounds (regular stickies only)
   const dayGroups = useMemo(() => {
     const groups: Record<string, DayGroupType> = {}
@@ -98,22 +105,23 @@ export function Canvas({ children }: CanvasProps) {
         maxY = Math.max(maxY, s.y + height)
       })
 
-      // Snap bounds to grid for consistent gaps
-      const snappedMinX = Math.floor(minX / GRID_SIZE) * GRID_SIZE
-      const snappedMinY = Math.floor(minY / GRID_SIZE) * GRID_SIZE
-      const snappedMaxX = Math.ceil(maxX / GRID_SIZE) * GRID_SIZE
-      const snappedMaxY = Math.ceil(maxY / GRID_SIZE) * GRID_SIZE
-
+      // No grid snapping needed - sticky positions are already grid-aligned
       groups[date].bounds = {
-        x: snappedMinX,
-        y: snappedMinY,
-        width: snappedMaxX - snappedMinX,
-        height: snappedMaxY - snappedMinY
+        x: minX,
+        y: minY,
+        width: maxX - minX,
+        height: maxY - minY
       }
     })
 
     return groups
-  }, [regularStickies, getStickyHeight])
+  }, [regularStickies, getStickyHeight, measuredHeightsKey])
+
+  // Same for task stickies
+  const taskMeasuredHeightsKey = useMemo(() =>
+    taskStickies.map(s => s.measuredHeight ?? 0).join(','),
+    [taskStickies]
+  )
 
   // Calculate tasks group bounds (taskStickies is already filtered by sync effect)
   const tasksGroupBounds = useMemo(() => {
@@ -142,19 +150,14 @@ export function Canvas({ children }: CanvasProps) {
       maxY = Math.max(maxY, s.y + height)
     })
 
-    // Snap bounds to grid
-    const snappedMinX = Math.floor(minX / GRID_SIZE) * GRID_SIZE
-    const snappedMinY = Math.floor(minY / GRID_SIZE) * GRID_SIZE
-    const snappedMaxX = Math.ceil(maxX / GRID_SIZE) * GRID_SIZE
-    const snappedMaxY = Math.ceil(maxY / GRID_SIZE) * GRID_SIZE
-
+    // No grid snapping needed - sticky positions are already grid-aligned
     return {
-      x: snappedMinX,
-      y: snappedMinY,
-      width: snappedMaxX - snappedMinX,
-      height: snappedMaxY - snappedMinY
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY
     }
-  }, [showOverlay, taskStickies, getStickyHeight])
+  }, [showOverlay, taskStickies, getStickyHeight, taskMeasuredHeightsKey])
 
   // Determine if we're dragging (for cursor and text selection)
   const isDragging = drag !== null

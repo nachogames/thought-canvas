@@ -13,8 +13,8 @@ export interface AppConfig {
 }
 
 const DEFAULT_CONFIG: AppConfig = {
-  theme: 'dark',
-  showTasks: false,
+  theme: 'light',
+  showTasks: true,
   taskViewMode: 'panel',
   filters: {
     tag: null,

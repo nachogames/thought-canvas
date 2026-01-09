@@ -231,6 +231,117 @@ interface StickiesProviderProps {
   children: ReactNode
 }
 
+// Get date string for N days ago
+const getDateString = (daysAgo: number): string => {
+  const date = new Date()
+  date.setDate(date.getDate() - daysAgo)
+  return date.toISOString().split('T')[0]
+}
+
+// Generate example stickies for first-time visitors
+const generateExampleStickies = (): Sticky[] => {
+  const today = getDateString(0)
+  const yesterday = getDateString(1)
+  const twoDaysAgo = getDateString(2)
+
+  // Pre-calculated heights based on content (header 20px + content + padding 32px, snapped to 16px grid)
+  return [
+    // 2 days ago - Project planning (top-left)
+    {
+      id: 'example-1',
+      content: `<p><strong>Project Ideas</strong></p>
+<ul>
+  <li><p>Build a personal dashboard</p></li>
+  <li><p>Learn a new framework</p></li>
+  <li><p>Contribute to open source</p></li>
+</ul>`,
+      x: 96,
+      y: 96,
+      date: twoDaysAgo,
+      zIndex: 1,
+      color: 'blue' as const,
+      measuredHeight: 160
+    },
+    {
+      id: 'example-2',
+      content: `<p>#planning</p>
+<ul data-type="taskList">
+  <li data-type="taskItem" data-checked="true"><label><input type="checkbox"></label><div><p>Research tech stack</p></div></li>
+  <li data-type="taskItem" data-checked="true"><label><input type="checkbox"></label><div><p>Set up dev environment</p></div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Create wireframes !!</p></div></li>
+</ul>`,
+      x: 368,
+      y: 96,
+      date: twoDaysAgo,
+      zIndex: 2,
+      measuredHeight: 160
+    },
+
+    // Yesterday - Active work (top-right, with gap from 2-days-ago group)
+    {
+      id: 'example-3',
+      content: `<p><strong>Meeting Notes</strong></p>
+<ul>
+  <li><p>Discussed timeline for Q1</p></li>
+  <li><p>Need to follow up with design team</p></li>
+  <li><p>Budget approved for new tools</p></li>
+</ul>`,
+      x: 720,
+      y: 96,
+      date: yesterday,
+      zIndex: 3,
+      color: 'green' as const,
+      measuredHeight: 176
+    },
+    {
+      id: 'example-4',
+      content: `<p>!! #work</p>
+<ul data-type="taskList">
+  <li data-type="taskItem" data-checked="true"><label><input type="checkbox"></label><div><p>Send project update email</p></div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Review pull requests #code</p></div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Update documentation !!!</p></div></li>
+</ul>`,
+      x: 992,
+      y: 96,
+      date: yesterday,
+      zIndex: 4,
+      measuredHeight: 160
+    },
+
+    // Today - Getting started (bottom-left)
+    {
+      id: 'example-5',
+      content: `<p><strong>Welcome to Thought Canvas!</strong></p>
+<ul>
+  <li><p>Double-click anywhere to create notes</p></li>
+  <li><p>Drag notes to organize them</p></li>
+  <li><p>Type / for quick commands</p></li>
+  <li><p>Use #tags to categorize</p></li>
+</ul>`,
+      x: 96,
+      y: 368,
+      date: today,
+      zIndex: 5,
+      color: 'yellow' as const,
+      measuredHeight: 192
+    },
+    {
+      id: 'example-6',
+      content: `<p>!!! #today</p>
+<ul data-type="taskList">
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Try creating a new note</p></div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Open the Tasks panel</p></div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Try priority: add ! or !! to a todo</p></div></li>
+</ul>`,
+      x: 368,
+      y: 368,
+      date: today,
+      zIndex: 6,
+      measuredHeight: 160
+    }
+  ]
+}
+
 // Load stickies from localStorage
 const loadStickies = (): Sticky[] => {
   try {
@@ -241,26 +352,16 @@ const loadStickies = (): Sticky[] => {
         return parsed
       }
     }
+    // Key exists but is empty or invalid - check if it's first visit
+    // If the key doesn't exist at all, it's a first-time visitor
+    if (stored === null) {
+      return generateExampleStickies()
+    }
   } catch (e) {
     console.error('Failed to load stickies from localStorage:', e)
   }
-  // Return default sticky with Tiptap HTML format
-  return [{
-    id: '1',
-    content: `<p>Welcome to Thought Canvas</p>
-<ul data-type="taskList">
-  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Create todos with checkboxes</p></div></li>
-  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Add tags like #project</p></div></li>
-</ul>
-<ul>
-  <li><p>Use bullets for notes</p></li>
-  <li><p>Press / for more options</p></li>
-</ul>`,
-    x: 100,
-    y: 100,
-    date: new Date().toISOString().split('T')[0],
-    zIndex: 1
-  }]
+  // Key exists but empty/invalid - return minimal default
+  return generateExampleStickies()
 }
 
 export function StickiesProvider({ children }: StickiesProviderProps) {
