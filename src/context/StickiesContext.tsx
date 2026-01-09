@@ -406,8 +406,8 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
   // Push to history stack (debounced for drag operations)
   const pushHistory = useCallback((newStickies: Sticky[]) => {
+    // Skip if this is a state restoration from undo/redo
     if (isUndoRedoRef.current) {
-      isUndoRedoRef.current = false
       return
     }
 
@@ -433,7 +433,10 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     if (historyIndexRef.current > 0) {
       historyIndexRef.current--
       isUndoRedoRef.current = true
-      setStickies(JSON.parse(JSON.stringify(historyRef.current[historyIndexRef.current])))
+      const restoredState = historyRef.current[historyIndexRef.current]
+      setStickies(JSON.parse(JSON.stringify(restoredState)))
+      // Clear flag after state update is queued
+      queueMicrotask(() => { isUndoRedoRef.current = false })
       setCanUndo(historyIndexRef.current > 0)
       setCanRedo(true)
     }
@@ -444,7 +447,10 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     if (historyIndexRef.current < historyRef.current.length - 1) {
       historyIndexRef.current++
       isUndoRedoRef.current = true
-      setStickies(JSON.parse(JSON.stringify(historyRef.current[historyIndexRef.current])))
+      const restoredState = historyRef.current[historyIndexRef.current]
+      setStickies(JSON.parse(JSON.stringify(restoredState)))
+      // Clear flag after state update is queued
+      queueMicrotask(() => { isUndoRedoRef.current = false })
       setCanUndo(true)
       setCanRedo(historyIndexRef.current < historyRef.current.length - 1)
     }
@@ -599,6 +605,9 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }
   }, [showTasks, taskViewMode, stickies, taskCardPositions, drag, filters])
 
+  // Track content before editing for history
+  const editingContentRef = useRef<{ id: string; content: string } | null>(null)
+
   // Sticky operations
   const createSticky = useCallback((x: number, y: number) => {
     const rawX = x - offset.x
@@ -618,12 +627,48 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     pushHistory(newStickies)
     setStickies(newStickies)
     setSelectedIds(new Set([newSticky.id]))
+    // Track content for history when editing ends
+    editingContentRef.current = { id: newSticky.id, content: '' }
     setEditingId(newSticky.id)
   }, [offset, stickies, pushHistory])
 
+  // When editing starts, capture the original content
+  const setEditingIdWithHistory = useCallback((id: string | null) => {
+    // If we're ending editing and content changed, push to history
+    if (editingContentRef.current && editingContentRef.current.id && id !== editingContentRef.current.id) {
+      const sticky = stickies.find(s => s.id === editingContentRef.current!.id)
+      if (sticky && sticky.content !== editingContentRef.current.content) {
+        // Content changed - this will be handled by the current state already being in place
+        // We just need to make sure history reflects the change
+        pushHistory(stickies)
+      }
+      editingContentRef.current = null
+    }
+
+    // If starting to edit a new sticky, capture its content
+    if (id) {
+      const sticky = stickies.find(s => s.id === id)
+      if (sticky) {
+        editingContentRef.current = { id, content: sticky.content }
+      }
+    }
+
+    setEditingId(id)
+  }, [stickies, pushHistory])
+
   const updateSticky = useCallback((id: string, updates: Partial<Sticky>) => {
     const newStickies = stickies.map(s => s.id === id ? { ...s, ...updates } : s)
-    pushHistory(newStickies)
+
+    // Skip history for internal updates (measuredHeight) and content updates during editing
+    // Content history is handled when editing ends via setEditingIdWithHistory
+    const keys = Object.keys(updates)
+    const isInternalUpdate = keys.every(key => key === 'measuredHeight')
+    const isContentUpdate = keys.includes('content')
+
+    if (!isInternalUpdate && !isContentUpdate) {
+      pushHistory(newStickies)
+    }
+
     setStickies(newStickies)
   }, [stickies, pushHistory])
 
@@ -937,17 +982,19 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       // Delete selected (only if not editing)
       if ((e.key === 'Backspace' || e.key === 'Delete') && !editingId && selectedIds.size > 0) {
         e.preventDefault()
-        const newStickies = stickies.filter(s => !selectedIds.has(s.id))
-        pushHistory(newStickies)
-        setStickies(newStickies)
-        setSelectedIds(new Set())
+        deleteSelectedStickies()
         return
       }
 
       // Enter to edit single selected card
       if (e.key === 'Enter' && selectedIds.size === 1 && !editingId) {
         e.preventDefault()
-        setEditingId([...selectedIds][0])
+        const stickyId = [...selectedIds][0]
+        const sticky = stickies.find(s => s.id === stickyId)
+        if (sticky) {
+          editingContentRef.current = { id: stickyId, content: sticky.content }
+        }
+        setEditingId(stickyId)
         return
       }
 
@@ -997,7 +1044,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, editingId, selectedIds, stickies, pushHistory, arrangeGroup, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
+  }, [undo, redo, editingId, selectedIds, deleteSelectedStickies, arrangeGroup, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
 
   // Auto-arrange task stickies when overlay first opens
   useEffect(() => {
@@ -1294,7 +1341,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
   // Todo toggle - works with Tiptap HTML and legacy markdown
   const toggleTodo = useCallback((stickyId: string, lineIndex: number) => {
-    setStickies(prev => prev.map(s => {
+    const newStickies = stickies.map(s => {
       if (s.id !== stickyId) return s
 
       // Check if content is Tiptap HTML
@@ -1325,8 +1372,11 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       }
 
       return s
-    }))
-  }, [])
+    })
+
+    pushHistory(newStickies)
+    setStickies(newStickies)
+  }, [stickies, pushHistory])
 
   // Toggle todo checkbox on a task sticky (updates source sticky)
   const toggleTaskTodo = useCallback((taskStickyId: string) => {
@@ -1480,6 +1530,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       pushHistory(newStickies)
       setStickies(newStickies)
       // Focus the sticky for editing
+      editingContentRef.current = { id: todaySticky.id, content: newContent }
       setEditingId(todaySticky.id)
       setSelectedIds(new Set([todaySticky.id]))
     } else {
@@ -1495,6 +1546,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       const newStickies = [...stickies, newSticky]
       pushHistory(newStickies)
       setStickies(newStickies)
+      editingContentRef.current = { id: newSticky.id, content: newSticky.content }
       setEditingId(newSticky.id)
       setSelectedIds(new Set([newSticky.id]))
     }
@@ -1518,7 +1570,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     deleteSticky,
     deleteSelectedStickies,
     selectSticky,
-    setEditingId,
+    setEditingId: setEditingIdWithHistory,
     clearAllStickies,
     startDrag,
     startGroupDrag,
