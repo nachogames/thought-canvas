@@ -1,7 +1,7 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
 import { LayoutGrid, Calendar, Eye, EyeOff, ChevronDown } from 'lucide-react'
 import { isToday, formatDateLabel } from '@/utils'
-import { useLongPress } from '@/hooks'
+import { useLongPress, useIsMobile } from '@/hooks'
 import type { DayGroupBounds, TodoFilters, DateFilterValue } from '@/types'
 import { GROUP_PADDING } from '@/constants'
 
@@ -40,6 +40,7 @@ export function DayGroup({
   onRequestPan,
 }: DayGroupProps) {
   const today = isToday(date)
+  const isMobile = useIsMobile()
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false)
   const [isLongPressing, setIsLongPressing] = useState(false)
   const dateDropdownRef = useRef<HTMLDivElement>(null)
@@ -47,6 +48,7 @@ export function DayGroup({
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return
     e.stopPropagation()
+    e.preventDefault() // Prevent text selection while dragging
     onDragStart?.(e)
   }, [onDragStart])
 
@@ -115,10 +117,15 @@ export function DayGroup({
             </span>
           )}
           {onArrange && (
-            <div className="flex items-center overflow-hidden max-w-0 group-hover:max-w-[24px] transition-all duration-200 ease-out">
+            <div className={`
+              flex items-center overflow-hidden transition-all duration-200 ease-out
+              ${isMobile ? 'max-w-[24px]' : 'max-w-0 group-hover:max-w-[24px]'}
+            `}>
               <button
                 onClick={(e) => { e.stopPropagation(); onArrange() }}
                 onMouseDown={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
+                onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); onArrange() }}
                 className="ml-1.5 p-0.5 rounded hover:bg-gray-300 dark:hover:bg-gray-600 flex items-center cursor-pointer"
                 title="Arrange into grid"
               >
@@ -138,7 +145,7 @@ export function DayGroup({
                 onMouseDown={e => e.stopPropagation()}
                 className={`
                   flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-medium
-                  transition-colors
+                  transition-colors cursor-pointer
                   ${filters.dateFilter !== 'all'
                     ? 'bg-accent/20 text-accent'
                     : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -158,7 +165,7 @@ export function DayGroup({
                       onMouseDown={e => e.stopPropagation()}
                       className={`
                         w-full text-left px-3 py-1.5 text-[11px]
-                        transition-colors
+                        transition-colors cursor-pointer
                         ${(typeof filters.dateFilter === 'string' ? filters.dateFilter : 'all') === option.value
                           ? 'text-accent bg-accent/10'
                           : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
@@ -178,7 +185,7 @@ export function DayGroup({
               onMouseDown={e => e.stopPropagation()}
               className={`
                 flex items-center gap-1 h-6 px-2 rounded-full text-[11px] font-medium
-                transition-colors
+                transition-colors cursor-pointer
                 ${filters.hideCompleted
                   ? 'bg-accent/20 text-accent'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -199,7 +206,7 @@ export function DayGroup({
           <button
             onClick={(e) => { e.stopPropagation(); onClose() }}
             onMouseDown={e => e.stopPropagation()}
-            className="flex items-center justify-center w-6 h-6 rounded-full text-xs bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            className="flex items-center justify-center w-6 h-6 rounded-full text-xs bg-gray-200 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 cursor-pointer"
           >
             ✕
           </button>

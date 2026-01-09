@@ -5,9 +5,26 @@ import { TodoPane } from '@/components/organisms/TodoPane'
 import { Toolbar } from '@/components/organisms/Toolbar'
 import { BottomSheet } from '@/components/molecules'
 
+const PANE_WIDTH_KEY = 'thought-canvas-pane-width'
+
+const getInitialPaneWidth = () => {
+  try {
+    const saved = localStorage.getItem(PANE_WIDTH_KEY)
+    if (saved) {
+      const width = parseInt(saved, 10)
+      if (!isNaN(width) && width >= 200 && width <= 500) {
+        return width
+      }
+    }
+  } catch {
+    // localStorage not available
+  }
+  return 320
+}
+
 export function CanvasLayout() {
   const { stickies, toggleTodo, panToSticky, filters, setFilters, showTasks, setShowTasks, taskViewMode } = useStickies()
-  const [paneWidth, setPaneWidth] = useState(320)
+  const [paneWidth, setPaneWidth] = useState(getInitialPaneWidth)
   const [isResizing, setIsResizing] = useState(false)
   const isMobile = useIsMobile()
 
@@ -29,6 +46,15 @@ export function CanvasLayout() {
 
     const handleMouseUp = () => {
       setIsResizing(false)
+      // Save final width to localStorage
+      setPaneWidth(w => {
+        try {
+          localStorage.setItem(PANE_WIDTH_KEY, String(w))
+        } catch {
+          // localStorage not available
+        }
+        return w
+      })
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mouseup', handleMouseUp)
     }

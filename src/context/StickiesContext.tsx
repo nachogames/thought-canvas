@@ -162,71 +162,6 @@ const calculateGroupBounds = (stickies: Sticky[]): GroupObstacle[] => {
     })
 }
 
-// Check if a rect overlaps any group (excluding a specific date)
-const overlapsGroup = (
-  rect: { l: number; t: number; r: number; b: number },
-  groups: GroupObstacle[],
-  excludeDate?: string
-): boolean => {
-  return groups.some(group => {
-    if (excludeDate && group.date === excludeDate) return false
-
-    // Group bounds with padding
-    const gl = group.bounds.x - GROUP_PADDING - HALF_GAP
-    const gt = group.bounds.y - GROUP_PADDING - HALF_GAP
-    const gr = group.bounds.x + group.bounds.width + GROUP_PADDING + HALF_GAP
-    const gb = group.bounds.y + group.bounds.height + GROUP_PADDING + HALF_GAP
-
-    // Standard AABB overlap check
-    return !(rect.r <= gl || rect.l >= gr || rect.b <= gt || rect.t >= gb)
-  })
-}
-
-// Find non-overlapping position for new sticky
-// Uses symmetric half-gap expansion: both rects expand by 10px = 20px total gap
-// Also avoids existing groups (new card is for today's date)
-const findNonOverlappingPosition = (
-  x: number,
-  y: number,
-  existingStickies: Sticky[],
-  todayDate: string
-): { x: number; y: number } => {
-  let posX = snap(x)
-  let posY = snap(y)
-
-  // Calculate all existing groups
-  const groups = calculateGroupBounds(existingStickies)
-
-  // Check if new card (expanded) overlaps any existing card (expanded) OR any group
-  const overlaps = () => {
-    const newRect = getExpandedRect(posX, posY, STICKY_WIDTH, MIN_STICKY_HEIGHT)
-
-    // Check sticky overlap
-    const stickyOverlap = existingStickies.some(s => {
-      const h = getStickyHeight(s.content, s.measuredHeight)
-      const sr = getExpandedRect(s.x, s.y, STICKY_WIDTH, h)
-      // Standard AABB overlap: NOT (fully left OR fully right OR fully above OR fully below)
-      return !(newRect.r <= sr.l || newRect.l >= sr.r || newRect.b <= sr.t || newRect.t >= sr.b)
-    })
-
-    if (stickyOverlap) return true
-
-    // Check group overlap (exclude today's group since we're adding to it)
-    return overlapsGroup(newRect, groups, todayDate)
-  }
-
-  let iter = 0
-  while (overlaps() && iter++ < 20) {
-    posY = snap(posY + GRID_SIZE * 2)
-    if (posY > 1000) {
-      posY = snap(y)
-      posX = snap(posX + STICKY_WIDTH + STICKY_GAP)
-    }
-  }
-
-  return { x: posX, y: posY }
-}
-
 interface StickiesProviderProps {
   children: ReactNode
 }
@@ -510,42 +445,6 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }
   }, [])
 
-  // Keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Undo/redo
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-        e.preventDefault()
-        if (e.shiftKey) {
-          redo()
-        } else {
-          undo()
-        }
-        return
-      }
-
-      // Delete selected (only if not editing)
-      if ((e.key === 'Backspace' || e.key === 'Delete') && !editingId && selectedIds.size > 0) {
-        e.preventDefault()
-        const newStickies = stickies.filter(s => !selectedIds.has(s.id))
-        pushHistory(newStickies)
-        setStickies(newStickies)
-        setSelectedIds(new Set())
-        return
-      }
-
-      // Enter to edit single selected card
-      if (e.key === 'Enter' && selectedIds.size === 1 && !editingId) {
-        e.preventDefault()
-        setEditingId([...selectedIds][0])
-        return
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, editingId, selectedIds, stickies, pushHistory])
-
   // Sync task stickies from todos in regular stickies (only in overlay mode)
   useEffect(() => {
     if (!showTasks || taskViewMode !== 'overlay') return
@@ -691,13 +590,12 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     const rawX = x - offset.x
     const rawY = y - offset.y
     const todayDate = new Date().toISOString().split('T')[0]
-    const pos = findNonOverlappingPosition(rawX, rawY, stickies, todayDate)
 
     const newSticky: Sticky = {
       id: Date.now().toString(),
       content: '',
-      x: pos.x,
-      y: pos.y,
+      x: snap(rawX),
+      y: snap(rawY),
       date: todayDate,
       zIndex: stickies.length + 1
     }
@@ -919,6 +817,50 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     pushHistory(newStickies)
     setStickies(newStickies)
   }, [stickies, pushHistory])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Undo/redo
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault()
+        if (e.shiftKey) {
+          redo()
+        } else {
+          undo()
+        }
+        return
+      }
+
+      // Cmd+Shift+G: Arrange today's group into grid
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'g') {
+        e.preventDefault()
+        const todayDate = new Date().toISOString().split('T')[0]
+        arrangeGroup(todayDate)
+        return
+      }
+
+      // Delete selected (only if not editing)
+      if ((e.key === 'Backspace' || e.key === 'Delete') && !editingId && selectedIds.size > 0) {
+        e.preventDefault()
+        const newStickies = stickies.filter(s => !selectedIds.has(s.id))
+        pushHistory(newStickies)
+        setStickies(newStickies)
+        setSelectedIds(new Set())
+        return
+      }
+
+      // Enter to edit single selected card
+      if (e.key === 'Enter' && selectedIds.size === 1 && !editingId) {
+        e.preventDefault()
+        setEditingId([...selectedIds][0])
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [undo, redo, editingId, selectedIds, stickies, pushHistory, arrangeGroup])
 
   // Auto-arrange task stickies when overlay first opens
   useEffect(() => {
@@ -1405,12 +1347,11 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       setSelectedIds(new Set([todaySticky.id]))
     } else {
       // Create a new sticky for today with an empty task
-      const pos = findNonOverlappingPosition(100, 100, stickies, todayDate)
       const newSticky: Sticky = {
         id: Date.now().toString(),
         content: `<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p></p></div></li></ul>`,
-        x: pos.x,
-        y: pos.y,
+        x: snap(100),
+        y: snap(100),
         date: todayDate,
         zIndex: stickies.length + 1
       }

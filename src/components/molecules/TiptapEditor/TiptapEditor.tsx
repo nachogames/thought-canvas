@@ -11,6 +11,7 @@ interface TiptapEditorProps {
   content: string
   onChange: (html: string) => void
   onBlur?: () => void
+  onDeleteEmpty?: () => void  // Called when backspace on empty content
   placeholder?: string
   autoFocus?: boolean
   editable?: boolean
@@ -21,6 +22,7 @@ export function TiptapEditor({
   content,
   onChange,
   onBlur,
+  onDeleteEmpty,
   placeholder = "Type '/' for commands...",
   autoFocus = false,
   editable = true,
@@ -63,6 +65,16 @@ export function TiptapEditor({
       },
       // Keyboard shortcuts for block transformations
       handleKeyDown: (_view, event) => {
+        // Backspace on empty content - delete the note
+        if (event.key === 'Backspace' && onDeleteEmpty) {
+          const isEmpty = editor?.isEmpty || editor?.getText().trim() === ''
+          if (isEmpty) {
+            event.preventDefault()
+            onDeleteEmpty()
+            return true
+          }
+        }
+
         const isMod = event.metaKey || event.ctrlKey
 
         // Cmd+Enter: Toggle todo on current line

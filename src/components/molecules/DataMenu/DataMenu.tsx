@@ -152,7 +152,7 @@ export function DataMenu() {
     text-sm text-left
     text-gray-700 dark:text-gray-300
     hover:bg-gray-100 dark:hover:bg-gray-700
-    transition-colors
+    transition-colors cursor-pointer
   `
 
   const sectionTitleClass = `
@@ -167,7 +167,7 @@ export function DataMenu() {
       <button
         onClick={toggleMenu}
         className={`
-          p-2 rounded-full transition-colors
+          p-2 rounded-full transition-colors cursor-pointer
           ${menuState !== 'closed'
             ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
             : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'

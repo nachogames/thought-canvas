@@ -134,6 +134,7 @@ export function Sticky({
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
     if (isEditing) return
     e.stopPropagation()
+    e.preventDefault() // Prevent text selection while dragging
     const addToSelection = e.metaKey || e.ctrlKey
 
     if (addToSelection) {
@@ -182,6 +183,7 @@ export function Sticky({
   const handleContentMouseDown = useCallback((e: React.MouseEvent) => {
     if (isEditing) return
     e.stopPropagation()
+    e.preventDefault() // Prevent text selection when not editing
   }, [isEditing])
 
   const handleColorSelect = useCallback((color: StickyColor) => {
@@ -276,6 +278,7 @@ export function Sticky({
           ${shadowClass}
           ${completedOpacity}
           ${isLongPressing ? 'scale-[1.02] opacity-90' : ''}
+          ${!isEditing ? 'select-none' : ''}
         `}
         style={{
           left: sticky.x,
@@ -331,7 +334,7 @@ export function Sticky({
                 setShowColorPicker(!showColorPicker)
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-opacity"
+              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-opacity cursor-pointer"
             >
               <Palette size={12} />
             </button>
@@ -350,7 +353,7 @@ export function Sticky({
                       handleColorSelect(color)
                     }}
                     className={`
-                      w-5 h-5 rounded-full border transition-transform hover:scale-110
+                      w-5 h-5 rounded-full border transition-transform hover:scale-110 cursor-pointer
                       ${STICKY_COLORS[color].swatch}
                       ${currentColor === color ? 'ring-2 ring-indigo-500 ring-offset-1' : ''}
                     `}
@@ -371,7 +374,7 @@ export function Sticky({
           <button
             onClick={handleFocusSource}
             onMouseDown={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-accent text-xs transition-opacity"
+            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-accent text-xs transition-opacity cursor-pointer"
             title="Go to source"
           >
             ↗
@@ -383,7 +386,7 @@ export function Sticky({
               onDelete(sticky.id)
             }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 transition-opacity"
+            className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 transition-opacity cursor-pointer"
           >
             <Trash2 size={12} />
           </button>
@@ -405,6 +408,7 @@ export function Sticky({
             content={sticky.content}
             onChange={handleContentChange}
             onBlur={handleBlur}
+            onDeleteEmpty={() => onDelete(sticky.id)}
             placeholder={isTaskMode ? "Task..." : "Type here..."}
             autoFocus={isEditing}
             editable={isEditing}

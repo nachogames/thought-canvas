@@ -98,7 +98,7 @@ export function Toolbar() {
         {/* New Note */}
         <button
           onClick={handleNewNote}
-          className="p-2 rounded-full text-indigo-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="p-2 rounded-full text-indigo-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
           title="New Note"
         >
           <Plus size={20} />
@@ -107,7 +107,7 @@ export function Toolbar() {
         {/* Go to Today */}
         <button
           onClick={handleGoToToday}
-          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
           title="Go to Today"
         >
           <Crosshair size={18} />
@@ -119,7 +119,7 @@ export function Toolbar() {
         <button
           onClick={undo}
           disabled={!canUndo}
-          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           title="Undo (Cmd+Z)"
         >
           <Undo2 size={18} />
@@ -127,7 +127,7 @@ export function Toolbar() {
         <button
           onClick={redo}
           disabled={!canRedo}
-          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
           title="Redo (Cmd+Shift+Z)"
         >
           <Redo2 size={18} />
@@ -142,7 +142,7 @@ export function Toolbar() {
             <button
               onClick={() => setShowTasks(prev => !prev)}
               className={`
-                h-full px-2 flex items-center transition-colors
+                h-full px-2 flex items-center transition-colors cursor-pointer
                 ${isMobile ? 'rounded-full' : 'rounded-l-full'}
                 ${showTasks
                   ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
@@ -158,7 +158,7 @@ export function Toolbar() {
               <button
                 onClick={() => setShowTaskMenu(prev => !prev)}
                 className={`
-                  h-full px-1.5 flex items-center rounded-r-full transition-colors
+                  h-full px-1.5 flex items-center rounded-r-full transition-colors cursor-pointer
                   ${showTasks
                     ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
                     : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
@@ -176,7 +176,7 @@ export function Toolbar() {
             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 min-w-[140px]">
               <button
                 onClick={() => { setTaskViewMode('panel'); setShowTaskMenu(false) }}
-                className={`w-full px-3 py-1.5 flex items-center gap-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${taskViewMode === 'panel' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300'}`}
+                className={`w-full px-3 py-1.5 flex items-center gap-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${taskViewMode === 'panel' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300'}`}
               >
                 <PanelRight size={14} />
                 <span>Panel</span>
@@ -184,7 +184,7 @@ export function Toolbar() {
               </button>
               <button
                 onClick={() => { setTaskViewMode('overlay'); setShowTaskMenu(false) }}
-                className={`w-full px-3 py-1.5 flex items-center gap-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${taskViewMode === 'overlay' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300'}`}
+                className={`w-full px-3 py-1.5 flex items-center gap-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer ${taskViewMode === 'overlay' ? 'text-indigo-600 dark:text-indigo-400' : 'text-gray-700 dark:text-gray-300'}`}
               >
                 <Layers size={14} />
                 <span>Overlay</span>
@@ -197,7 +197,7 @@ export function Toolbar() {
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
           title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
         >
           {isDark ? <Sun size={18} /> : <Moon size={18} />}
@@ -212,7 +212,7 @@ export function Toolbar() {
             <Divider />
             <button
               onClick={handleDeleteSelected}
-              className="p-2 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors"
+              className="p-2 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors cursor-pointer"
               title={`Delete ${selectedIds.size} selected note${selectedIds.size > 1 ? 's' : ''}`}
             >
               <Trash2 size={18} />
