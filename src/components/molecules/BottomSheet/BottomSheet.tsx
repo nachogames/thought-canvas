@@ -14,8 +14,11 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
   // Track the visual state (for animation)
   const [isVisible, setIsVisible] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const dragStartY = useRef(0)
   const sheetHeight = useRef(0)
+  // Track if drag started from content at scroll top
+  const dragFromContentRef = useRef(false)
 
   // Handle open/close with animation timing
   useEffect(() => {
@@ -64,8 +67,9 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
     setDragY(0)
   }, [isDragging, dragY, onClose])
 
-  // Touch handlers
+  // Touch handlers for handle area
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    dragFromContentRef.current = false
     handleDragStart(e.touches[0].clientY)
   }, [handleDragStart])
 
@@ -75,7 +79,52 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
 
   const handleTouchEnd = useCallback(() => {
     handleDragEnd()
+    dragFromContentRef.current = false
   }, [handleDragEnd])
+
+  // Touch handlers for content area (scroll-aware drag to close)
+  const handleContentTouchStart = useCallback((e: React.TouchEvent) => {
+    const content = contentRef.current
+    if (!content) return
+
+    // Check if we're at the top of scroll
+    if (content.scrollTop <= 0) {
+      dragFromContentRef.current = true
+      dragStartY.current = e.touches[0].clientY
+      if (sheetRef.current) {
+        sheetHeight.current = sheetRef.current.offsetHeight
+      }
+    }
+  }, [])
+
+  const handleContentTouchMove = useCallback((e: React.TouchEvent) => {
+    const content = contentRef.current
+    if (!content) return
+
+    const currentY = e.touches[0].clientY
+    const delta = currentY - dragStartY.current
+
+    // If at scroll top and dragging down, activate sheet drag
+    if (dragFromContentRef.current && content.scrollTop <= 0 && delta > 0) {
+      e.preventDefault()
+      setIsDragging(true)
+      setDragY(Math.max(0, delta))
+    } else if (isDragging && dragFromContentRef.current) {
+      // Continue dragging if already started
+      e.preventDefault()
+      setDragY(Math.max(0, delta))
+    } else {
+      // Normal scroll - reset drag state
+      dragFromContentRef.current = false
+    }
+  }, [isDragging])
+
+  const handleContentTouchEnd = useCallback(() => {
+    if (isDragging && dragFromContentRef.current) {
+      handleDragEnd()
+    }
+    dragFromContentRef.current = false
+  }, [isDragging, handleDragEnd])
 
   // Mouse handlers (for testing on desktop)
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -147,7 +196,13 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
         </div>
 
         {/* Content - TodoPane has its own header */}
-        <div className="flex-1 overflow-y-auto h-[calc(100%-24px)]">
+        <div
+          ref={contentRef}
+          className="flex-1 overflow-y-auto h-[calc(100%-24px)]"
+          onTouchStart={handleContentTouchStart}
+          onTouchMove={handleContentTouchMove}
+          onTouchEnd={handleContentTouchEnd}
+        >
           {children}
         </div>
       </div>
