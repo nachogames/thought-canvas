@@ -740,11 +740,58 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       h: getStickyHeight(s.content, s.measuredHeight)
     }))
 
-    // Find anchor point (top-left corner)
+    // Helper to check if two cards overlap
+    const cardsOverlap = (a: typeof cards[0], b: typeof cards[0]) => {
+      const aRect = getExpandedRect(a.x, a.y, STICKY_WIDTH, a.h)
+      const bRect = getExpandedRect(b.x, b.y, STICKY_WIDTH, b.h)
+      return !(aRect.r <= bRect.l || bRect.r <= aRect.l ||
+               aRect.b <= bRect.t || bRect.b <= aRect.t)
+    }
+
+    // Phase 1: Resolve overlaps by pushing cards apart
+    // Sort cards by position (top-left first) so we push later cards outward
+    cards.sort((a, b) => (a.y + a.x) - (b.y + b.x))
+
+    let resolveIterations = 0
+    const maxResolveIterations = 50
+    let hasOverlap = true
+
+    while (hasOverlap && resolveIterations < maxResolveIterations) {
+      hasOverlap = false
+      resolveIterations++
+
+      for (let i = 0; i < cards.length; i++) {
+        for (let j = i + 1; j < cards.length; j++) {
+          if (cardsOverlap(cards[i], cards[j])) {
+            hasOverlap = true
+            // Push card j (the later one) to the right or down
+            const cardI = cards[i]
+            const cardJ = cards[j]
+
+            // Calculate how much we need to move to clear the overlap
+            const pushRight = snap(cardI.x + STICKY_WIDTH + STICKY_GAP) - cardJ.x
+            const pushDown = snap(cardI.y + cardI.h + STICKY_GAP) - cardJ.y
+
+            // Choose the smaller push (prefer moving right if equal)
+            if (pushRight <= pushDown && pushRight > 0) {
+              cardJ.x = snap(cardI.x + STICKY_WIDTH + STICKY_GAP)
+            } else if (pushDown > 0) {
+              cardJ.y = snap(cardI.y + cardI.h + STICKY_GAP)
+            } else {
+              // Both pushes are negative/zero, card j is already clear in that direction
+              // Push right as fallback
+              cardJ.x = snap(cardI.x + STICKY_WIDTH + STICKY_GAP)
+            }
+          }
+        }
+      }
+    }
+
+    // Find anchor point (top-left corner) after resolving overlaps
     const anchorX = Math.min(...cards.map(c => c.x))
     const anchorY = Math.min(...cards.map(c => c.y))
 
-    // Iteratively slide cards towards anchor until nothing moves
+    // Phase 2: Iteratively slide cards towards anchor until nothing moves
     let moved = true
     let iterations = 0
     const maxIterations = 100
