@@ -98,23 +98,19 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
   }, [])
 
   const handleContentTouchMove = useCallback((e: React.TouchEvent) => {
-    const content = contentRef.current
-    if (!content) return
+    // Only handle if touch started at scroll top
+    if (!dragFromContentRef.current) return
 
     const currentY = e.touches[0].clientY
     const delta = currentY - dragStartY.current
 
-    // If at scroll top and dragging down, activate sheet drag
-    if (dragFromContentRef.current && content.scrollTop <= 0 && delta > 0) {
+    // Only activate drag if swiping down (delta > 0)
+    if (delta > 0) {
       e.preventDefault()
       setIsDragging(true)
-      setDragY(Math.max(0, delta))
-    } else if (isDragging && dragFromContentRef.current) {
-      // Continue dragging if already started
-      e.preventDefault()
-      setDragY(Math.max(0, delta))
-    } else {
-      // Normal scroll - reset drag state
+      setDragY(delta)
+    } else if (!isDragging) {
+      // Swiping up from scroll top - allow normal scroll, disable drag detection
       dragFromContentRef.current = false
     }
   }, [isDragging])
