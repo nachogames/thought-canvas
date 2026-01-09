@@ -175,6 +175,21 @@ export function Sticky({
     if (isEditing) return
     e.stopPropagation()
 
+    // Check if content is empty (just whitespace or empty HTML)
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = sticky.content
+    const isEmpty = !tempDiv.textContent?.trim()
+
+    // For empty notes, go straight to edit mode
+    if (isEmpty) {
+      if (!isSelected) {
+        onSelect(sticky.id, false)
+      }
+      setClickCoords({ x: e.clientX, y: e.clientY })
+      onSetEditing(sticky.id)
+      return
+    }
+
     if (!isSelected) {
       onSelect(sticky.id, e.metaKey || e.ctrlKey)
     } else {
@@ -182,7 +197,7 @@ export function Sticky({
       setClickCoords({ x: e.clientX, y: e.clientY })
       onSetEditing(sticky.id)
     }
-  }, [isEditing, isSelected, sticky.id, onSelect, onSetEditing])
+  }, [isEditing, isSelected, sticky.id, sticky.content, onSelect, onSetEditing])
 
   const handleContentMouseDown = useCallback((e: React.MouseEvent) => {
     if (isEditing) return
