@@ -8,46 +8,48 @@ A spatial, infinite-canvas note-taking application that reimagines how you captu
 - **Boundless canvas** - Pan and place sticky notes anywhere in space
 - **Automatic day grouping** - Notes organize themselves by creation date
 - **Grid snapping** - 16px grid keeps layouts clean and aligned
+- **Card colors** - Choose from default, blue, green, yellow, or rose backgrounds
 - **Dark/Light themes** - Comfortable viewing in any environment
 
-### Block-Based Content
-Each sticky note supports multiple content blocks:
-
-| Block Type | Syntax | Description |
-|------------|--------|-------------|
-| Text | (plain text) | Free-form thoughts |
-| Todo | `- [ ]` / `- [x]` | Checkable task items |
-| Bullet | `- ` | Unordered list items |
-| Heading | `# ` | Section headers |
-
-**Inline formatting:**
-- **Tags**: `#tagname` for categorization and filtering
-- **Priority**: `!` to `!!!!` for importance levels (1-4)
+### Rich Text Editing (Tiptap)
+Full rich text editing powered by Tiptap with support for:
+- **Task lists** - Checkable todo items
+- **Bullet lists** - Unordered list items
+- **Tags** - `#tagname` for categorization and filtering
+- **Priority markers** - `!` (low), `!!` (medium), `!!!` (high), or `^` prefix
 
 ### Slash Commands
-Type `/` to access quick formatting:
-- `/todo` or `/t` - Convert block to todo
-- `/bullet` or `/b` - Convert block to bullet
-- `/turn` or `/convert` - Transform all text blocks to todos
+Type `/` in the editor to access quick formatting:
+- `/todo` - Insert a todo item
+- `/bullet` - Insert a bullet point
+- `/turn` - Convert all bullets to todos
 
 ### Rich Interactions
 - **Double-click canvas** to create new notes
-- **Double-click note** to edit
+- **Click note, then click again** to edit (or press Enter when selected)
 - **Cmd/Ctrl+Click** for multi-select
 - **Drag notes** with collision detection and smart spacing
 - **Drag day headers** to move entire date groups
+- **Click "Arrange" on day headers** to compact notes in a group
 
-### Todo Pane
-- Aggregates all todos across notes
-- Filter by tags
-- Sort by priority
+### Task Views
+Two ways to view and manage your todos:
+
+**Panel Mode** - Side panel listing all tasks
+- Filter by tags or date range (today, yesterday, this week)
 - Toggle completed visibility
-- Click to jump to source note
+- Click any task to jump to its source note
 
-### State Management
-- Auto-save to localStorage
-- Undo/Redo with 50-action history
-- Automatic recovery on refresh
+**Overlay Mode** - Tasks as draggable cards on the canvas
+- Each todo becomes its own mini-card
+- Bidirectional sync with source notes
+- Drag to reposition, arrange to compact
+
+### Data Management
+- **Auto-save** to localStorage
+- **Undo/Redo** with 50-action history
+- **Export** all notes as JSON
+- **Import** with replace or merge options
 
 ## Tech Stack
 
@@ -107,38 +109,37 @@ src/
 
 ### Creating Notes
 1. Double-click anywhere on the canvas to create a new sticky note
-2. Start typing to add content
-3. Use markdown-style syntax for formatting:
-   - `- [ ]` for todos
-   - `- ` for bullets
-   - `# ` for headings
-   - `#tag` for tags
-   - `!` to `!!!!` for priority
+2. The note opens in edit mode - start typing
+3. Use `/` to open the slash command menu for quick formatting
+4. Add `#tags` inline for categorization
+5. Use `!`, `!!`, or `!!!` to set priority levels
 
 ### Organizing Notes
 - Drag notes to reposition them
 - Notes automatically group by creation date
-- Use the day group header to move all notes from that day together
+- Click the day group header to select all notes in that group
+- Drag the header to move the entire group
+- Click "Arrange" to compact notes within a group
 
 ### Managing Todos
-- Open the Todo Pane from the toolbar
-- Filter todos by tag using the dropdown
-- Toggle "Show completed" to hide finished items
+- Click the Tasks button in the bottom toolbar
+- Choose between Panel (sidebar) or Overlay (canvas cards) view
+- Filter by tag, date range, or completion status
 - Click any todo to jump to its source note
 
 ### Keyboard Shortcuts
-- **Enter** - Create new block
-- **Backspace** (empty block) - Delete block and merge up
-- **Arrow Up/Down** - Navigate between blocks
-- **Cmd+Enter** - Toggle block type
+- **Enter** (in editor) - New line/list item
+- **Backspace** (empty line) - Exit list or delete
 - **Cmd+Z** - Undo
 - **Cmd+Shift+Z** - Redo
+- **Delete/Backspace** (card selected, not editing) - Delete selected cards
+- **Enter** (card selected) - Enter edit mode
 
 ## Design Philosophy
 
 **Spatial-Temporal Hybrid**: Combines the freedom of spatial organization with automatic date-based grouping. Your thoughts exist in both space and time.
 
-**Block-Based Architecture**: Each note contains multiple content blocks, enabling mixed content types and future extensibility.
+**Rich Text First**: Tiptap-powered editing provides a modern, intuitive writing experience with slash commands and inline formatting.
 
 **Local-First**: All data persists in localStorage. No backend, no accounts, no data leaving your device.
 
