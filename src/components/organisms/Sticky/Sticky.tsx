@@ -84,10 +84,11 @@ export function Sticky({
       return { checked: false, priority: 0, tags: new Set<string>() }
     }
     const todo = parsedContent.todos[0]
+    // Task gets its own tags + note-level tags (tags outside any task item)
     return {
       checked: todo.checked,
       priority: todo.priority || parsedContent.priority,
-      tags: new Set([...todo.tags, ...parsedContent.tags])
+      tags: new Set([...todo.tags, ...parsedContent.noteTags])
     }
   }, [parsedContent, todoData, sticky.isTask, sticky.taskChecked, sticky.taskPriority, sticky.taskTags])
 

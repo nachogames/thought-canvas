@@ -128,12 +128,13 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
   const allTodos = useMemo(() => {
     const todos: TodoWithContext[] = []
     stickies.forEach(s => {
-      const { todos: stickyTodos, tags: stickyTags } = parseContent(s.content)
+      const { todos: stickyTodos, noteTags } = parseContent(s.content)
       stickyTodos.forEach(t => {
+        // Task gets its own tags + note-level tags (tags outside any task item)
         todos.push({
           ...t,
           stickyId: s.id,
-          allTags: new Set([...t.tags, ...stickyTags]),
+          allTags: new Set([...t.tags, ...noteTags]),
           date: s.date
         })
       })

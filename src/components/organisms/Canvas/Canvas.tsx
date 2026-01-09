@@ -1,8 +1,7 @@
-import { useRef, useEffect, useMemo, useCallback, type ReactNode } from 'react'
-import { Crosshair } from 'lucide-react'
-import { useStickies } from '@/hooks'
+import { useRef, useEffect, useMemo, useCallback, useState, type ReactNode } from 'react'
+import { HelpCircle, X } from 'lucide-react'
+import { useStickies, useIsMobile } from '@/hooks'
 import { STICKY_WIDTH } from '@/constants'
-import { IconButton } from '@/components/atoms/Button'
 import { CanvasBackground } from './CanvasBackground'
 import { Sticky } from '../Sticky'
 import { DayGroup } from '../DayGroup'
@@ -16,6 +15,9 @@ interface CanvasProps {
 
 export function Canvas({ children }: CanvasProps) {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const helpRef = useRef<HTMLDivElement>(null)
+  const [showHelp, setShowHelp] = useState(false)
+  const isMobile = useIsMobile()
   const {
     stickies,
     selectedIds,
@@ -50,6 +52,34 @@ export function Canvas({ children }: CanvasProps) {
 
   // Check if overlay mode is active
   const showOverlay = showTasks && taskViewMode === 'overlay'
+
+  // ? key to toggle help (when not editing)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '?' && !editingId) {
+        e.preventDefault()
+        setShowHelp(prev => !prev)
+      }
+      // Escape to close help
+      if (e.key === 'Escape' && showHelp) {
+        setShowHelp(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [editingId, showHelp])
+
+  // Click outside to close help
+  useEffect(() => {
+    if (!showHelp) return
+    const handleClick = (e: MouseEvent) => {
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) {
+        setShowHelp(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showHelp])
 
   // Separate task stickies from regular stickies
   // Regular stickies (not tasks)
@@ -259,19 +289,44 @@ export function Canvas({ children }: CanvasProps) {
     }
   }
 
-  // Scroll/wheel to pan
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    // Update offset based on scroll delta
-    setOffset(prev => ({
-      x: prev.x - e.deltaX,
-      y: prev.y - e.deltaY
-    }))
-  }, [setOffset])
+  // Check if element is inside a no-pan zone (help popover, modals, etc.)
+  const isInNoPanZone = useCallback((target: HTMLElement): boolean => {
+    let el: HTMLElement | null = target
+    while (el && el !== canvasRef.current) {
+      // Check for data-no-pan attribute or if inside help popover
+      if (el.hasAttribute('data-no-pan') || el === helpRef.current) {
+        return true
+      }
+      el = el.parentElement
+    }
+    return false
+  }, [])
 
-  // Recenter view
-  const handleRecenter = useCallback(() => {
-    setOffset({ x: 0, y: 0 })
-  }, [setOffset])
+  // Native wheel handler to prevent browser back/forward and handle panning
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const handleWheel = (e: WheelEvent) => {
+      // Don't pan if inside a no-pan zone (help popover, etc.)
+      if (isInNoPanZone(e.target as HTMLElement)) {
+        return
+      }
+
+      // Prevent browser back/forward navigation on horizontal swipe (Chrome Mac)
+      e.preventDefault()
+
+      // Update offset based on scroll delta
+      setOffset(prev => ({
+        x: prev.x - e.deltaX,
+        y: prev.y - e.deltaY
+      }))
+    }
+
+    // Must use { passive: false } to allow preventDefault
+    canvas.addEventListener('wheel', handleWheel, { passive: false })
+    return () => canvas.removeEventListener('wheel', handleWheel)
+  }, [setOffset, isInNoPanZone])
 
   return (
     <div
@@ -282,7 +337,6 @@ export function Canvas({ children }: CanvasProps) {
       onDoubleClick={handleCanvasDoubleClick}
       onMouseDown={handleCanvasMouseDown}
       onTouchStart={handleCanvasTouchStart}
-      onWheel={handleWheel}
     >
       <CanvasBackground offsetX={offset.x} offsetY={offset.y} />
 
@@ -365,17 +419,117 @@ export function Canvas({ children }: CanvasProps) {
 
       {children}
 
-      {/* Bottom controls */}
-      <div className="absolute bottom-4 right-4 flex gap-2">
-        <IconButton
-          icon={Crosshair}
-          variant="ghost"
-          size="sm"
-          label="Recenter view"
-          onClick={handleRecenter}
-          className="opacity-50 hover:opacity-100"
-        />
-      </div>
+      {/* Help button & popover - hidden on mobile */}
+      {!isMobile && (
+        <div className="absolute bottom-4 right-4" ref={helpRef}>
+          <button
+            onClick={() => setShowHelp(prev => !prev)}
+            className={`
+              p-2 rounded-full transition-all cursor-pointer
+              ${showHelp
+                ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30 scale-110'
+                : 'bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:scale-105'
+              }
+              shadow-md border border-gray-200 dark:border-gray-700
+            `}
+            title="Keyboard shortcuts (?)"
+          >
+            <HelpCircle size={18} />
+          </button>
+
+          {showHelp && (
+            <div className="absolute bottom-full right-0 mb-2 w-72 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden z-[100]">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-200 dark:border-gray-700">
+                <span className="font-medium text-sm text-gray-700 dark:text-gray-200">Keyboard Shortcuts</span>
+                <button
+                  onClick={() => setShowHelp(false)}
+                  className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="p-3 space-y-3 text-[13px] max-h-80 overflow-y-auto">
+                {/* Canvas shortcuts */}
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Canvas</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">New note</span>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">double-click</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Edit selected</span>
+                    <kbd className="key">Enter</kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Delete selected</span>
+                    <kbd className="key">Backspace</kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Arrange group</span>
+                    <div className="flex gap-0.5">
+                      <kbd className="key">⌘</kbd>
+                      <kbd className="key">⇧</kbd>
+                      <kbd className="key">G</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Undo / Redo</span>
+                    <div className="flex gap-0.5">
+                      <kbd className="key">⌘</kbd>
+                      <kbd className="key">Z</kbd>
+                      <span className="text-gray-400 mx-1">/</span>
+                      <kbd className="key">⌘</kbd>
+                      <kbd className="key">⇧</kbd>
+                      <kbd className="key">Z</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Center on today</span>
+                    <kbd className="key">0</kbd>
+                  </div>
+                </div>
+
+                {/* Editor shortcuts */}
+                <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Editor</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Slash commands</span>
+                    <kbd className="key">/</kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Toggle todo</span>
+                    <div className="flex gap-0.5">
+                      <kbd className="key">⌘</kbd>
+                      <kbd className="key">Enter</kbd>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Bullet list</span>
+                    <div className="flex gap-0.5">
+                      <kbd className="key">⌘</kbd>
+                      <kbd className="key">⇧</kbd>
+                      <kbd className="key">B</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                {/* General */}
+                <div className="border-t border-gray-100 dark:border-gray-700 pt-3 space-y-1.5">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">General</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">This help</span>
+                    <kbd className="key">?</kbd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Close / Deselect</span>
+                    <kbd className="key">Esc</kbd>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

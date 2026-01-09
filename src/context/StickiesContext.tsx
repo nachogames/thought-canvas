@@ -61,6 +61,7 @@ interface StickiesContextValue {
   updatePan: (e: MouseEvent | TouchEvent) => void
   endPan: () => void
   setOffset: React.Dispatch<React.SetStateAction<PanState>>
+  centerOnToday: () => void
 
   // Todo operations
   toggleTodo: (stickyId: string, lineIndex: number) => void
@@ -519,7 +520,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       // Apply date filter at the sticky level
       if (!matchesDateFilter(sticky.date)) return
 
-      const { todos } = parseContent(sticky.content)
+      const { todos, noteTags } = parseContent(sticky.content)
       todos.forEach((todo, lineIndex) => {
         if (!todo.cleanText) return
         // Apply hideCompleted filter
@@ -547,6 +548,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
           y = pos.y
         }
 
+        // Task gets its own tags + note-level tags (tags outside any task item)
         newTaskStickies.push({
           id: taskId,
           content: `<p>${todo.cleanText}</p>`,
@@ -559,7 +561,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
           sourceLineIndex: lineIndex,
           taskChecked: todo.checked,
           taskPriority: todo.priority,
-          taskTags: [...todo.tags],
+          taskTags: [...todo.tags, ...noteTags],
         })
       })
     })
@@ -865,6 +867,32 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     setStickies(newStickies)
   }, [stickies, pushHistory])
 
+  // Center viewport on today's stickies
+  const centerOnToday = useCallback(() => {
+    const today = new Date().toISOString().split('T')[0]
+    const todayStickies = stickies.filter(s => s.date === today)
+
+    if (todayStickies.length === 0) return
+
+    // Calculate center of today's stickies
+    const minX = Math.min(...todayStickies.map(s => s.x))
+    const maxX = Math.max(...todayStickies.map(s => s.x)) + STICKY_WIDTH
+    const minY = Math.min(...todayStickies.map(s => s.y))
+    const maxY = Math.max(...todayStickies.map(s => s.y + (s.measuredHeight || MIN_STICKY_HEIGHT)))
+
+    const centerX = (minX + maxX) / 2
+    const centerY = (minY + maxY) / 2
+
+    // Pan to center
+    const viewportWidth = window.innerWidth
+    const viewportHeight = window.innerHeight
+
+    setOffset({
+      x: -centerX + viewportWidth / 2,
+      y: -centerY + viewportHeight / 2
+    })
+  }, [stickies, setOffset])
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -903,11 +931,18 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         setEditingId([...selectedIds][0])
         return
       }
+
+      // 0: Center on today's stickies (only if not editing)
+      if (e.key === '0' && !editingId && !e.metaKey && !e.ctrlKey && !e.shiftKey) {
+        e.preventDefault()
+        centerOnToday()
+        return
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, editingId, selectedIds, stickies, pushHistory, arrangeGroup])
+  }, [undo, redo, editingId, selectedIds, stickies, pushHistory, arrangeGroup, centerOnToday])
 
   // Auto-arrange task stickies when overlay first opens
   useEffect(() => {
@@ -1439,6 +1474,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     updatePan,
     endPan,
     setOffset,
+    centerOnToday,
     toggleTodo,
     toggleTaskTodo,
     updateTaskStickyContent,

@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Plus, Undo2, Redo2, Trash2, ListTodo, Sun, Moon, PanelRight, Layers, ChevronDown, Crosshair } from 'lucide-react'
-import { STICKY_WIDTH, MIN_STICKY_HEIGHT } from '@/constants'
 import { useStickies, useTheme, useIsMobile } from '@/hooks'
 import { DataMenu } from '@/components/molecules'
 
@@ -10,10 +9,8 @@ function Divider() {
 
 export function Toolbar() {
   const {
-    stickies,
     createSticky,
     offset,
-    setOffset,
     undo,
     redo,
     canUndo,
@@ -24,6 +21,7 @@ export function Toolbar() {
     setShowTasks,
     taskViewMode,
     setTaskViewMode,
+    centerOnToday,
   } = useStickies()
   const [showTaskMenu, setShowTaskMenu] = useState(false)
   const taskMenuRef = useRef<HTMLDivElement>(null)
@@ -57,31 +55,6 @@ export function Toolbar() {
     }
   }
 
-  const handleGoToToday = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0]
-    const todayStickies = stickies.filter(s => s.date === today)
-
-    if (todayStickies.length === 0) return
-
-    // Calculate center of today's stickies
-    const minX = Math.min(...todayStickies.map(s => s.x))
-    const maxX = Math.max(...todayStickies.map(s => s.x)) + STICKY_WIDTH
-    const minY = Math.min(...todayStickies.map(s => s.y))
-    const maxY = Math.max(...todayStickies.map(s => s.y + (s.measuredHeight || MIN_STICKY_HEIGHT)))
-
-    const centerX = (minX + maxX) / 2
-    const centerY = (minY + maxY) / 2
-
-    // Pan to center
-    const viewportWidth = window.innerWidth
-    const viewportHeight = window.innerHeight
-
-    setOffset({
-      x: -centerX + viewportWidth / 2,
-      y: -centerY + viewportHeight / 2
-    })
-  }, [stickies, setOffset])
-
   return (
     <>
       {/* Centered pill toolbar */}
@@ -106,9 +79,9 @@ export function Toolbar() {
 
         {/* Go to Today */}
         <button
-          onClick={handleGoToToday}
+          onClick={centerOnToday}
           className="p-2 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors cursor-pointer"
-          title="Go to Today"
+          title="Go to Today (0)"
         >
           <Crosshair size={18} />
         </button>

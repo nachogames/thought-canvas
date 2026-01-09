@@ -9,7 +9,8 @@ export interface ParsedTodo {
 
 export interface ParsedContent {
   todos: ParsedTodo[]
-  tags: Set<string>
+  tags: Set<string>        // All tags in the note (for backwards compat)
+  noteTags: Set<string>    // Tags outside task items (apply to all tasks)
   priority: number
 }
 

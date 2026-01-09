@@ -34,6 +34,7 @@ export function parseContent(content: string): ParsedContent {
 
   // Legacy markdown parsing for backwards compatibility
   const lines = content.split('\n')
+  const allTaskTags = new Set<string>()
 
   lines.forEach((line, idx) => {
     // Extract all tags from line
@@ -54,7 +55,11 @@ export function parseContent(content: string): ParsedContent {
       const todoTags = new Set<string>()
       const todoTagMatches = todoMatch[3].match(/#(\w+)/g)
       if (todoTagMatches) {
-        todoTagMatches.forEach(t => todoTags.add(t.slice(1)))
+        todoTagMatches.forEach(t => {
+          const tag = t.slice(1)
+          todoTags.add(tag)
+          allTaskTags.add(tag) // Track all tags that appear on task lines
+        })
       }
 
       const todoPriorityMatch = todoMatch[3].match(PRIORITY_REGEX)
@@ -71,7 +76,10 @@ export function parseContent(content: string): ParsedContent {
     }
   })
 
-  return { todos, tags, priority }
+  // Note-level tags are tags that appear outside of task items
+  const noteTags = new Set([...tags].filter(t => !allTaskTags.has(t)))
+
+  return { todos, tags, noteTags, priority }
 }
 
 /**
@@ -107,6 +115,7 @@ function getTextWithSpacing(element: Element): string {
 function parseHtmlContent(html: string): ParsedContent {
   const todos: ParsedTodo[] = []
   const tags = new Set<string>()
+  const allTaskTags = new Set<string>()
   let priority = 0
 
   // Create a temporary DOM parser
@@ -137,7 +146,11 @@ function parseHtmlContent(html: string): ParsedContent {
     const todoTags = new Set<string>()
     const todoTagMatches = text.match(/#(\w+)/g)
     if (todoTagMatches) {
-      todoTagMatches.forEach(t => todoTags.add(t.slice(1)))
+      todoTagMatches.forEach(t => {
+        const tag = t.slice(1)
+        todoTags.add(tag)
+        allTaskTags.add(tag) // Track all tags that appear on task lines
+      })
     }
 
     // Extract priority from this todo (falls back to card-level priority)
@@ -154,7 +167,10 @@ function parseHtmlContent(html: string): ParsedContent {
     })
   })
 
-  return { todos, tags, priority }
+  // Note-level tags are tags that appear outside of task items
+  const noteTags = new Set([...tags].filter(t => !allTaskTags.has(t)))
+
+  return { todos, tags, noteTags, priority }
 }
 
 /**

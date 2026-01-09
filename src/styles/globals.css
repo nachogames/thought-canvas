@@ -334,6 +334,24 @@ body {
   padding: 0;
 }
 
+/* Keyboard shortcut key styling */
+.key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 5px;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--color-secondary);
+  background: var(--color-faint);
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
 /* Mobile touch handling */
 @media (max-width: 768px) {
   /* Prevent text selection on touch */
