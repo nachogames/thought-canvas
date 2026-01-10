@@ -1,5 +1,6 @@
 import type { Sticky, StickyColor } from '../types/sticky'
 import type { ThoughtCanvasExport, ValidationResult } from '../types/export'
+import { getTodayISO } from './date'
 
 const VALID_COLORS: StickyColor[] = ['default', 'blue', 'green', 'yellow', 'rose']
 
@@ -179,8 +180,7 @@ export function offsetPositions(stickies: Sticky[], offset: number): Sticky[] {
  * Gets export filename with current date
  */
 export function getExportFilename(): string {
-  const date = new Date().toISOString().split('T')[0]
-  return `thought-canvas-${date}.json`
+  return `thought-canvas-${getTodayISO()}.json`
 }
 
 /**

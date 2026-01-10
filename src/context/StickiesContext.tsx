@@ -10,7 +10,7 @@ import {
 } from 'react'
 import type { Sticky, DragState, PanState, TodoFilters, ThoughtCanvasExport, ImportMode, TasksGroupState } from '@/types'
 import { GRID_SIZE, STICKY_WIDTH, STICKY_GAP, MIN_STICKY_HEIGHT, GROUP_PADDING } from '@/constants'
-import { getStickyHeight, resolveCollisions, createExportData, generateNewIds, offsetPositions, parseContent } from '@/utils'
+import { getStickyHeight, resolveCollisions, createExportData, generateNewIds, offsetPositions, parseContent, getTodayISO } from '@/utils'
 import type { GroupObstacle } from '@/utils/grid'
 
 import { loadConfig, saveConfig } from '@/utils'
@@ -613,7 +613,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   const createSticky = useCallback((x: number, y: number) => {
     const rawX = x - offset.x
     const rawY = y - offset.y
-    const todayDate = new Date().toISOString().split('T')[0]
+    const todayDate = getTodayISO()
 
     const newSticky: Sticky = {
       id: Date.now().toString(),
@@ -635,7 +635,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
   // Create a sticky with smart placement in today's group
   const createStickyInTodayGroup = useCallback(() => {
-    const todayDate = new Date().toISOString().split('T')[0]
+    const todayDate = getTodayISO()
     const todayStickies = stickies.filter(s => s.date === todayDate)
 
     let newX: number
@@ -1048,7 +1048,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
   // Center viewport on today's stickies and reset day navigation
   const centerOnToday = useCallback(() => {
-    const today = new Date().toISOString().split('T')[0]
+    const today = getTodayISO()
     const todayIndex = sortedDays.indexOf(today)
     setFocusedDayIndex(todayIndex >= 0 ? todayIndex : null)
     centerOnDay(today)
@@ -1071,7 +1071,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       // Cmd+Shift+G: Arrange today's group into grid
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'g') {
         e.preventDefault()
-        const todayDate = new Date().toISOString().split('T')[0]
+        const todayDate = getTodayISO()
         arrangeGroup(todayDate)
         return
       }
@@ -1111,7 +1111,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         // Initialize to today's index if not set
         let currentIndex = focusedDayIndex
         if (currentIndex === null) {
-          const today = new Date().toISOString().split('T')[0]
+          const today = getTodayISO()
           currentIndex = sortedDays.indexOf(today)
           if (currentIndex === -1) {
             // Find closest day to today
@@ -1121,7 +1121,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         }
 
         // Navigate with wrapping
-        const today = new Date().toISOString().split('T')[0]
+        const today = getTodayISO()
         const todayIndex = sortedDays.indexOf(today)
         const effectiveTodayIndex = todayIndex >= 0 ? todayIndex : sortedDays.length - 1
 
@@ -1609,7 +1609,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   // Create a new task (sticky with an empty todo) - used when double-clicking in tasks group
   const createTaskInGroup = useCallback((_x: number, _y: number) => {
     // Find or create a sticky for today to add the task to
-    const todayDate = new Date().toISOString().split('T')[0]
+    const todayDate = getTodayISO()
     const todaySticky = stickies.find(s => s.date === todayDate)
 
     if (todaySticky) {
