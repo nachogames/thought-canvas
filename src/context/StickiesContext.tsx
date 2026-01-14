@@ -57,6 +57,7 @@ interface StickiesContextValue {
   updateDrag: (e: MouseEvent | TouchEvent) => void
   endDrag: () => void
   arrangeGroup: (date: string, visibleIds?: Set<string>) => void
+  fixOverlappingGroups: () => void
 
   // Pan operations
   startPan: (e: React.MouseEvent | React.TouchEvent) => void
@@ -977,9 +978,9 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         for (const other of cards) {
           if (other.id === card.id) continue
 
-          // Does this card overlap horizontally with other?
-          const horzOverlap = !(card.x + STICKY_WIDTH + STICKY_GAP <= other.x ||
-                                other.x + STICKY_WIDTH + STICKY_GAP <= card.x)
+          // Does this card overlap horizontally with other? (use target X for accurate check)
+          const horzOverlap = !(targetX + STICKY_WIDTH + STICKY_GAP <= other.x ||
+                                other.x + STICKY_WIDTH + STICKY_GAP <= targetX)
 
           if (horzOverlap && other.y < card.y) {
             // Other card is above and overlaps horizontally - it blocks us
@@ -987,9 +988,9 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
           }
         }
 
-        // Only move towards anchor (don't move away)
-        const newX = Math.min(card.x, targetX)
-        const newY = Math.min(card.y, targetY)
+        // Move to target position (allows moving in any direction to fill gaps)
+        const newX = targetX
+        const newY = targetY
 
         // Apply movement if changed
         if (newX !== card.x || newY !== card.y) {
@@ -1019,6 +1020,383 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
     pushHistory(newStickies)
     setStickies(newStickies)
+  }, [stickies, pushHistory])
+
+  // Arrange all day groups nicely - slide each towards top-left with minimum movement
+  const fixOverlappingGroups = useCallback(() => {
+    // Exclude task stickies from group arrangement
+    const regularStickies = stickies.filter(s => s.date !== TASKS_GROUP_DATE)
+    const groups = calculateGroupBounds(regularStickies)
+    if (groups.length <= 1) return
+
+    // Working copy of groups with mutable positions
+    const groupBoxes = groups.map(g => ({
+      date: g.date,
+      x: g.bounds.x - GROUP_PADDING,
+      y: g.bounds.y - GROUP_PADDING - GROUP_LABEL_HEIGHT,
+      width: g.bounds.width + GROUP_PADDING * 2,
+      height: g.bounds.height + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
+      // Track original position for offset calculation
+      originalX: g.bounds.x,
+      originalY: g.bounds.y
+    }))
+
+    // Helper to get expanded rect for collision detection
+    const getGroupRect = (g: typeof groupBoxes[0]) => ({
+      l: g.x - HALF_GAP,
+      t: g.y - HALF_GAP,
+      r: g.x + g.width + HALF_GAP,
+      b: g.y + g.height + HALF_GAP
+    })
+
+    // Check if two groups overlap
+    const groupsOverlap = (a: typeof groupBoxes[0], b: typeof groupBoxes[0]) => {
+      const aRect = getGroupRect(a)
+      const bRect = getGroupRect(b)
+      return !(aRect.r <= bRect.l || bRect.r <= aRect.l ||
+               aRect.b <= bRect.t || bRect.b <= aRect.t)
+    }
+
+    // Phase 1: Resolve overlaps by pushing groups apart
+    // Sort by position (top-left first) so we push later groups outward
+    groupBoxes.sort((a, b) => (a.y + a.x) - (b.y + b.x))
+
+    let resolveIterations = 0
+    const maxResolveIterations = 50
+    let hasOverlap = true
+
+    while (hasOverlap && resolveIterations < maxResolveIterations) {
+      hasOverlap = false
+      resolveIterations++
+
+      for (let i = 0; i < groupBoxes.length; i++) {
+        for (let j = i + 1; j < groupBoxes.length; j++) {
+          if (groupsOverlap(groupBoxes[i], groupBoxes[j])) {
+            hasOverlap = true
+            const boxI = groupBoxes[i]
+            const boxJ = groupBoxes[j]
+
+            // Calculate how much to move to clear the overlap
+            const pushRight = snap(boxI.x + boxI.width + STICKY_GAP) - boxJ.x
+            const pushDown = snap(boxI.y + boxI.height + STICKY_GAP) - boxJ.y
+
+            // Choose the smaller push (prefer moving right if equal)
+            if (pushRight <= pushDown && pushRight > 0) {
+              boxJ.x = snap(boxI.x + boxI.width + STICKY_GAP)
+            } else if (pushDown > 0) {
+              boxJ.y = snap(boxI.y + boxI.height + STICKY_GAP)
+            } else {
+              boxJ.x = snap(boxI.x + boxI.width + STICKY_GAP)
+            }
+          }
+        }
+      }
+    }
+
+    // Find anchor point (top-left corner) after resolving overlaps
+    const anchorX = Math.min(...groupBoxes.map(g => g.x))
+    const anchorY = Math.min(...groupBoxes.map(g => g.y))
+
+    // Phase 2: Iteratively slide groups towards anchor until nothing moves
+    let moved = true
+    let iterations = 0
+    const maxIterations = 100
+
+    while (moved && iterations < maxIterations) {
+      moved = false
+      iterations++
+
+      for (const group of groupBoxes) {
+        // Try to move left - find the blocking X
+        let targetX = anchorX
+        for (const other of groupBoxes) {
+          if (other.date === group.date) continue
+
+          // Does this group overlap vertically with other?
+          const vertOverlap = !(group.y + group.height + STICKY_GAP <= other.y ||
+                                other.y + other.height + STICKY_GAP <= group.y)
+
+          if (vertOverlap && other.x < group.x) {
+            // Other group is to the left and overlaps vertically - it blocks us
+            targetX = Math.max(targetX, snap(other.x + other.width + STICKY_GAP))
+          }
+        }
+
+        // Try to move up - find the blocking Y
+        let targetY = anchorY
+        for (const other of groupBoxes) {
+          if (other.date === group.date) continue
+
+          // Does this group overlap horizontally with other? (use target X for accurate check)
+          const horzOverlap = !(targetX + group.width + STICKY_GAP <= other.x ||
+                                other.x + other.width + STICKY_GAP <= targetX)
+
+          if (horzOverlap && other.y < group.y) {
+            // Other group is above and overlaps horizontally - it blocks us
+            targetY = Math.max(targetY, snap(other.y + other.height + STICKY_GAP))
+          }
+        }
+
+        // Move to target position (allows moving in any direction to fill gaps)
+        const newX = targetX
+        const newY = targetY
+
+        // Apply movement if changed
+        if (newX !== group.x || newY !== group.y) {
+          // But make sure new position doesn't overlap anything
+          const testGroup = { ...group, x: newX, y: newY }
+          const wouldOverlap = groupBoxes.some(other => {
+            if (other.date === group.date) return false
+            return groupsOverlap(testGroup, other)
+          })
+
+          if (!wouldOverlap) {
+            group.x = newX
+            group.y = newY
+            moved = true
+          }
+        }
+      }
+    }
+
+    // Calculate offsets for each group and apply to stickies
+    const groupOffsets: Record<string, { dx: number; dy: number }> = {}
+    for (const box of groupBoxes) {
+      // Original position was bounds.x/y, box position includes padding
+      const dx = (box.x + GROUP_PADDING) - box.originalX
+      const dy = (box.y + GROUP_PADDING + GROUP_LABEL_HEIGHT) - box.originalY
+      groupOffsets[box.date] = { dx, dy }
+    }
+
+    // Apply offsets to all stickies
+    const newStickies = stickies.map(s => {
+      const offset = groupOffsets[s.date]
+      if (offset && (offset.dx !== 0 || offset.dy !== 0)) {
+        return { ...s, x: s.x + offset.dx, y: s.y + offset.dy }
+      }
+      return s
+    })
+
+    // Only update if something changed
+    if (newStickies.some((s, i) => s.x !== stickies[i].x || s.y !== stickies[i].y)) {
+      pushHistory(newStickies)
+      setStickies(newStickies)
+    }
+  }, [stickies, pushHistory])
+
+  // Arrange all cards in all groups, then arrange groups - all in one atomic update
+  const arrangeAll = useCallback(() => {
+    let workingStickies = [...stickies]
+    const regularStickies = workingStickies.filter(s => s.date !== TASKS_GROUP_DATE)
+    const dates = [...new Set(regularStickies.map(s => s.date))]
+
+    // Helper to arrange cards within a single group (modifies workingStickies in place)
+    const arrangeCardsInGroup = (date: string) => {
+      const groupStickies = workingStickies.filter(s => s.date === date)
+      if (groupStickies.length <= 1) return
+
+      const cards = groupStickies.map(s => ({
+        id: s.id,
+        x: s.x,
+        y: s.y,
+        h: getStickyHeight(s.content, s.measuredHeight)
+      }))
+
+      const cardsOverlap = (a: typeof cards[0], b: typeof cards[0]) => {
+        const aRect = getExpandedRect(a.x, a.y, STICKY_WIDTH, a.h)
+        const bRect = getExpandedRect(b.x, b.y, STICKY_WIDTH, b.h)
+        return !(aRect.r <= bRect.l || bRect.r <= aRect.l ||
+                 aRect.b <= bRect.t || bRect.b <= aRect.t)
+      }
+
+      // Phase 1: Resolve overlaps
+      cards.sort((a, b) => (a.y + a.x) - (b.y + b.x))
+      let hasOverlap = true
+      let resolveIter = 0
+      while (hasOverlap && resolveIter < 50) {
+        hasOverlap = false
+        resolveIter++
+        for (let i = 0; i < cards.length; i++) {
+          for (let j = i + 1; j < cards.length; j++) {
+            if (cardsOverlap(cards[i], cards[j])) {
+              hasOverlap = true
+              const pushRight = snap(cards[i].x + STICKY_WIDTH + STICKY_GAP) - cards[j].x
+              const pushDown = snap(cards[i].y + cards[i].h + STICKY_GAP) - cards[j].y
+              if (pushRight <= pushDown && pushRight > 0) {
+                cards[j].x = snap(cards[i].x + STICKY_WIDTH + STICKY_GAP)
+              } else if (pushDown > 0) {
+                cards[j].y = snap(cards[i].y + cards[i].h + STICKY_GAP)
+              } else {
+                cards[j].x = snap(cards[i].x + STICKY_WIDTH + STICKY_GAP)
+              }
+            }
+          }
+        }
+      }
+
+      // Phase 2: Slide toward anchor
+      const anchorX = Math.min(...cards.map(c => c.x))
+      const anchorY = Math.min(...cards.map(c => c.y))
+      let moved = true
+      let iter = 0
+      while (moved && iter < 100) {
+        moved = false
+        iter++
+        for (const card of cards) {
+          let targetX = anchorX
+          for (const other of cards) {
+            if (other.id === card.id) continue
+            const vertOverlap = !(card.y + card.h + STICKY_GAP <= other.y ||
+                                  other.y + other.h + STICKY_GAP <= card.y)
+            if (vertOverlap && other.x < card.x) {
+              targetX = Math.max(targetX, snap(other.x + STICKY_WIDTH + STICKY_GAP))
+            }
+          }
+          let targetY = anchorY
+          for (const other of cards) {
+            if (other.id === card.id) continue
+            const horzOverlap = !(targetX + STICKY_WIDTH + STICKY_GAP <= other.x ||
+                                  other.x + STICKY_WIDTH + STICKY_GAP <= targetX)
+            if (horzOverlap && other.y < card.y) {
+              targetY = Math.max(targetY, snap(other.y + other.h + STICKY_GAP))
+            }
+          }
+          if (targetX !== card.x || targetY !== card.y) {
+            const testCard = { ...card, x: targetX, y: targetY }
+            const wouldOverlap = cards.some(other => {
+              if (other.id === card.id) return false
+              return cardsOverlap(testCard, other)
+            })
+            if (!wouldOverlap) {
+              card.x = targetX
+              card.y = targetY
+              moved = true
+            }
+          }
+        }
+      }
+
+      // Apply to working stickies
+      workingStickies = workingStickies.map(s => {
+        const c = cards.find(c => c.id === s.id)
+        return c ? { ...s, x: c.x, y: c.y } : s
+      })
+    }
+
+    // Step 1: Arrange cards in each group
+    dates.forEach(date => arrangeCardsInGroup(date))
+
+    // Step 2: Arrange groups (using updated positions from step 1)
+    const updatedRegularStickies = workingStickies.filter(s => s.date !== TASKS_GROUP_DATE)
+    const groups = calculateGroupBounds(updatedRegularStickies)
+    if (groups.length > 1) {
+      const groupBoxes = groups.map(g => ({
+        date: g.date,
+        x: g.bounds.x - GROUP_PADDING,
+        y: g.bounds.y - GROUP_PADDING - GROUP_LABEL_HEIGHT,
+        width: g.bounds.width + GROUP_PADDING * 2,
+        height: g.bounds.height + GROUP_PADDING * 2 + GROUP_LABEL_HEIGHT,
+        originalX: g.bounds.x,
+        originalY: g.bounds.y
+      }))
+
+      const getGroupRect = (g: typeof groupBoxes[0]) => ({
+        l: g.x - HALF_GAP, t: g.y - HALF_GAP,
+        r: g.x + g.width + HALF_GAP, b: g.y + g.height + HALF_GAP
+      })
+      const groupsOverlap = (a: typeof groupBoxes[0], b: typeof groupBoxes[0]) => {
+        const aRect = getGroupRect(a), bRect = getGroupRect(b)
+        return !(aRect.r <= bRect.l || bRect.r <= aRect.l || aRect.b <= bRect.t || bRect.b <= aRect.t)
+      }
+
+      // Phase 1: Resolve group overlaps
+      groupBoxes.sort((a, b) => (a.y + a.x) - (b.y + b.x))
+      let hasOverlap = true
+      let resolveIter = 0
+      while (hasOverlap && resolveIter < 50) {
+        hasOverlap = false
+        resolveIter++
+        for (let i = 0; i < groupBoxes.length; i++) {
+          for (let j = i + 1; j < groupBoxes.length; j++) {
+            if (groupsOverlap(groupBoxes[i], groupBoxes[j])) {
+              hasOverlap = true
+              const pushRight = snap(groupBoxes[i].x + groupBoxes[i].width + STICKY_GAP) - groupBoxes[j].x
+              const pushDown = snap(groupBoxes[i].y + groupBoxes[i].height + STICKY_GAP) - groupBoxes[j].y
+              if (pushRight <= pushDown && pushRight > 0) {
+                groupBoxes[j].x = snap(groupBoxes[i].x + groupBoxes[i].width + STICKY_GAP)
+              } else if (pushDown > 0) {
+                groupBoxes[j].y = snap(groupBoxes[i].y + groupBoxes[i].height + STICKY_GAP)
+              } else {
+                groupBoxes[j].x = snap(groupBoxes[i].x + groupBoxes[i].width + STICKY_GAP)
+              }
+            }
+          }
+        }
+      }
+
+      // Phase 2: Slide groups toward anchor
+      const anchorX = Math.min(...groupBoxes.map(g => g.x))
+      const anchorY = Math.min(...groupBoxes.map(g => g.y))
+      let moved = true
+      let iter = 0
+      while (moved && iter < 100) {
+        moved = false
+        iter++
+        for (const group of groupBoxes) {
+          let targetX = anchorX
+          for (const other of groupBoxes) {
+            if (other.date === group.date) continue
+            const vertOverlap = !(group.y + group.height + STICKY_GAP <= other.y ||
+                                  other.y + other.height + STICKY_GAP <= group.y)
+            if (vertOverlap && other.x < group.x) {
+              targetX = Math.max(targetX, snap(other.x + other.width + STICKY_GAP))
+            }
+          }
+          let targetY = anchorY
+          for (const other of groupBoxes) {
+            if (other.date === group.date) continue
+            const horzOverlap = !(targetX + group.width + STICKY_GAP <= other.x ||
+                                  other.x + other.width + STICKY_GAP <= targetX)
+            if (horzOverlap && other.y < group.y) {
+              targetY = Math.max(targetY, snap(other.y + other.height + STICKY_GAP))
+            }
+          }
+          if (targetX !== group.x || targetY !== group.y) {
+            const testGroup = { ...group, x: targetX, y: targetY }
+            const wouldOverlap = groupBoxes.some(other => {
+              if (other.date === group.date) return false
+              return groupsOverlap(testGroup, other)
+            })
+            if (!wouldOverlap) {
+              group.x = targetX
+              group.y = targetY
+              moved = true
+            }
+          }
+        }
+      }
+
+      // Apply group offsets to stickies
+      const groupOffsets: Record<string, { dx: number; dy: number }> = {}
+      for (const box of groupBoxes) {
+        const dx = (box.x + GROUP_PADDING) - box.originalX
+        const dy = (box.y + GROUP_PADDING + GROUP_LABEL_HEIGHT) - box.originalY
+        groupOffsets[box.date] = { dx, dy }
+      }
+      workingStickies = workingStickies.map(s => {
+        const offset = groupOffsets[s.date]
+        if (offset && (offset.dx !== 0 || offset.dy !== 0)) {
+          return { ...s, x: s.x + offset.dx, y: s.y + offset.dy }
+        }
+        return s
+      })
+    }
+
+    // Only update if something changed
+    if (workingStickies.some((s, i) => s.x !== stickies[i].x || s.y !== stickies[i].y)) {
+      pushHistory(workingStickies)
+      setStickies(workingStickies)
+    }
   }, [stickies, pushHistory])
 
   // Center viewport on stickies for a specific day
@@ -1068,11 +1446,10 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         return
       }
 
-      // Cmd+Shift+G: Arrange today's group into grid
+      // Cmd+Shift+G: Arrange all cards and groups in one go
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'g') {
         e.preventDefault()
-        const todayDate = getTodayISO()
-        arrangeGroup(todayDate)
+        arrangeAll()
         return
       }
 
@@ -1141,7 +1518,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, editingId, selectedIds, deleteSelectedStickies, arrangeGroup, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
+  }, [undo, redo, editingId, selectedIds, deleteSelectedStickies, arrangeAll, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
 
   // Auto-arrange task stickies when overlay first opens
   useEffect(() => {
@@ -1675,6 +2052,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     updateDrag,
     endDrag,
     arrangeGroup,
+    fixOverlappingGroups,
     startPan,
     updatePan,
     endPan,

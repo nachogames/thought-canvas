@@ -13,20 +13,22 @@ A spatial, infinite-canvas note-taking application that reimagines how you captu
 
 ### Rich Text Editing (Tiptap)
 Full rich text editing powered by Tiptap with support for:
-- **Task lists** - Checkable todo items
+- **Task lists** - Checkable todo items with nested subtasks (Tab to indent)
 - **Bullet lists** - Unordered list items
+- **Headings** - H1 and H2 support
 - **Tags** - `#tagname` for categorization and filtering
-- **Priority markers** - `!` (low), `!!` (medium), `!!!` (high), or `^` prefix
+- **Priority markers** - `!` (low), `!!` (medium), `!!!` (high), `!!!!` (critical)
 
 ### Slash Commands
 Type `/` in the editor to access quick formatting:
 - `/todo` - Insert a todo item
 - `/bullet` - Insert a bullet point
+- `/h1`, `/h2` - Insert headings
 - `/turn` - Convert all bullets to todos
 
 ### Rich Interactions
 - **Double-click canvas** to create new notes
-- **Click note, then click again** to edit (or press Enter when selected)
+- **Single click note** to select and edit
 - **Cmd/Ctrl+Click** for multi-select
 - **Drag notes** with collision detection and smart spacing
 - **Drag day headers** to move entire date groups
@@ -56,14 +58,14 @@ Two ways to view and manage your todos:
 - **React 19** + **TypeScript**
 - **Vite 7** for development and builds
 - **Tailwind CSS 4** for styling
-- **TipTap** for rich text editing
+- **Tiptap** for rich text editing
 - **Lucide React** for icons
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js 18+
-- npm or pnpm
+- pnpm (recommended) or npm
 
 ### Installation
 
@@ -73,19 +75,19 @@ git clone <repo-url>
 cd thought-canvas
 
 # Install dependencies
-npm install
+pnpm install
 
 # Start development server
-npm run dev
+pnpm dev
 ```
 
 ### Available Scripts
 
 ```bash
-npm run dev      # Start development server
-npm run build    # Build for production
-npm run preview  # Preview production build
-npm run lint     # Run ESLint
+pnpm dev      # Start development server
+pnpm build    # Build for production
+pnpm preview  # Preview production build
+pnpm lint     # Run ESLint
 ```
 
 ## Project Structure
@@ -112,7 +114,7 @@ src/
 2. The note opens in edit mode - start typing
 3. Use `/` to open the slash command menu for quick formatting
 4. Add `#tags` inline for categorization
-5. Use `!`, `!!`, or `!!!` to set priority levels
+5. Use `!`, `!!`, `!!!`, or `!!!!` to set priority levels
 
 ### Organizing Notes
 - Drag notes to reposition them
@@ -128,12 +130,23 @@ src/
 - Click any todo to jump to its source note
 
 ### Keyboard Shortcuts
-- **Enter** (in editor) - New line/list item
-- **Backspace** (empty line) - Exit list or delete
+
+**In Editor:**
+- **Cmd+Enter** - Toggle todo on current line
+- **Cmd+Shift+C** - Toggle task list (checkbox)
+- **Cmd+Shift+B** - Toggle bullet list
+- **Cmd+Shift+1/2** - Toggle heading level 1/2
+- **Cmd+Shift+0** - Convert to plain paragraph
+- **Tab** - Indent nested task
+- **Shift+Tab** - Outdent nested task
+- **Backspace** (empty line) - Exit list or delete note
+
+**On Canvas:**
 - **Cmd+Z** - Undo
 - **Cmd+Shift+Z** - Redo
 - **Delete/Backspace** (card selected, not editing) - Delete selected cards
-- **Enter** (card selected) - Enter edit mode
+- **?** - Toggle help overlay
+- **Alt+Drag** - Pan canvas
 
 ## Design Philosophy
 

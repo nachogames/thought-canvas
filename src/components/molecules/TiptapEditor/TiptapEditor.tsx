@@ -39,7 +39,7 @@ export function TiptapEditor({
       }),
       TaskList,
       TaskItem.configure({
-        nested: false,
+        nested: true,
         HTMLAttributes: {
           class: 'flex items-start gap-2',
         },

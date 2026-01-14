@@ -83,6 +83,29 @@ export function parseContent(content: string): ParsedContent {
 }
 
 /**
+ * Get direct text content from a task item, excluding nested task lists
+ */
+function getDirectTextContent(element: Element): string {
+  const parts: string[] = []
+
+  element.childNodes.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.textContent || '')
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element
+      // Skip nested task lists - they'll be parsed as separate items
+      if (el.getAttribute('data-type') === 'taskList') {
+        return
+      }
+      // Recurse into other elements (like <p>, <label>, etc.)
+      parts.push(getDirectTextContent(el))
+    }
+  })
+
+  return parts.join('').trim()
+}
+
+/**
  * Get text content from DOM with proper spacing between block elements
  */
 function getTextWithSpacing(element: Element): string {
@@ -140,7 +163,8 @@ function parseHtmlContent(html: string): ParsedContent {
 
   taskItems.forEach((item, idx) => {
     const checked = item.getAttribute('data-checked') === 'true'
-    const text = item.textContent?.trim() || ''
+    // Get only direct text content, excluding nested task lists
+    const text = getDirectTextContent(item)
 
     // Extract tags from this todo
     const todoTags = new Set<string>()
