@@ -165,6 +165,7 @@ body {
 /* Tiptap Editor Styles */
 .ProseMirror {
   outline: none;
+  font-size: 14px; /* text-sm - match static content */
 }
 
 .ProseMirror p {
@@ -177,6 +178,14 @@ body {
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+/* Links */
+.ProseMirror a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: text; /* Show text cursor while editing */
+  word-break: break-all; /* Break long URLs */
 }
 
 /* Task list (todos) */
@@ -245,6 +254,101 @@ body {
 }
 
 .ProseMirror h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Static sticky content (non-editing mode) - mirrors ProseMirror styles */
+.sticky-content {
+  outline: none;
+  font-size: 14px; /* text-sm - match ProseMirror */
+  overflow-wrap: break-word; /* Ensure long words/URLs wrap */
+  word-wrap: break-word; /* Legacy support */
+}
+
+.sticky-content p {
+  margin: 0;
+}
+
+/* Empty paragraphs need min-height to show as blank lines */
+.sticky-content p:empty::before {
+  content: '\200B'; /* Zero-width space to give height */
+}
+
+.sticky-content p.is-editor-empty:first-child::before {
+  color: var(--color-muted);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Links - clickable in view mode */
+.sticky-content a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+  word-break: break-all; /* Break long URLs */
+}
+
+.sticky-content a:hover {
+  color: var(--color-accent-light);
+}
+
+.sticky-content ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.sticky-content ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0;
+}
+
+.sticky-content ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.sticky-content ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.sticky-content ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  color: var(--color-muted);
+}
+
+.sticky-content ul[data-type="taskList"] li > div {
+  min-height: 1.5em;
+  flex: 1;
+}
+
+.sticky-content ul:not([data-type="taskList"]) {
+  list-style-type: disc;
+  padding-left: 20px;
+  margin: 0;
+}
+
+.sticky-content ul:not([data-type="taskList"]) li {
+  margin: 2px 0;
+  min-height: 1.5em;
+}
+
+.sticky-content h1 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.sticky-content h2 {
   font-size: 1.1rem;
   font-weight: 600;
   margin: 0;
@@ -350,6 +454,11 @@ body {
   background: var(--color-faint);
   border-radius: 4px;
   white-space: nowrap;
+}
+
+/* Disable transitions during drag for performance */
+.is-dragging [data-sticky] {
+  transition: none !important;
 }
 
 /* Mobile touch handling */

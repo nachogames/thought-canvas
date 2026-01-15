@@ -27,11 +27,10 @@ interface StickyProps {
   todoData?: { checked: boolean; priority: number; tags: Set<string> }
   // Called when long-press is cancelled due to movement - triggers pan
   onRequestPan?: (e: React.TouchEvent) => void
-  // Disable transitions during drag
-  isDragging?: boolean
 }
 
-export function Sticky({
+// TODO: Re-enable memo after fixing edit mode issue
+const StickyComponent = function Sticky({
   sticky,
   onUpdate,
   onDelete,
@@ -45,7 +44,6 @@ export function Sticky({
   onFocusSource,
   todoData,
   onRequestPan,
-  isDragging = false,
 }: StickyProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -109,6 +107,9 @@ export function Sticky({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showColorPicker])
 
+  // Track last reported height to avoid redundant updates
+  const lastReportedHeightRef = useRef<number | undefined>(sticky.measuredHeight)
+
   // Measure content height and report to parent for collision detection
   useLayoutEffect(() => {
     if (contentRef.current) {
@@ -121,11 +122,16 @@ export function Sticky({
       const snappedHeight = Math.ceil(rawHeight / GRID_SIZE) * GRID_SIZE
 
       // Report measured height if different (for collision detection)
-      if (sticky.measuredHeight !== snappedHeight) {
-        onUpdate(sticky.id, { measuredHeight: snappedHeight })
+      // Use ref to track what we've reported to avoid loops
+      if (lastReportedHeightRef.current !== snappedHeight) {
+        lastReportedHeightRef.current = snappedHeight
+        // Defer the update to avoid triggering during render
+        queueMicrotask(() => {
+          onUpdate(sticky.id, { measuredHeight: snappedHeight })
+        })
       }
     }
-  }, [sticky.content, sticky.id, sticky.measuredHeight, onUpdate, isTaskMode, minHeight])
+  }, [sticky.content, sticky.id, onUpdate, isTaskMode, minHeight])
 
   const handleContentChange = useCallback((html: string) => {
     onUpdate(sticky.id, { content: html })
@@ -175,6 +181,14 @@ export function Sticky({
   const handleContentClick = useCallback((e: React.MouseEvent) => {
     if (isEditing) return // This card is being edited, let TiptapEditor handle clicks
     e.stopPropagation()
+
+    // Check if user clicked a link - open it instead of entering edit mode
+    const target = e.target as HTMLElement
+    if (target.tagName === 'A' && target.getAttribute('href')) {
+      e.preventDefault()
+      window.open(target.getAttribute('href')!, '_blank', 'noopener,noreferrer')
+      return
+    }
 
     const isMultiSelect = e.metaKey || e.ctrlKey
 
@@ -286,7 +300,7 @@ export function Sticky({
           absolute rounded-lg overflow-hidden
           ${bgClass}
           border border-gray-200 dark:border-gray-700
-          ${isDragging ? '' : 'transition-all duration-200'}
+          transition-all duration-200
           ${shadowClass}
           ${completedOpacity}
           ${isLongPressing ? 'scale-[1.02] opacity-90' : ''}
@@ -407,28 +421,34 @@ export function Sticky({
 
       {/* Content */}
       <div
-        className={`${isTaskMode ? 'px-3 pb-3' : 'px-4 pb-4'} cursor-text`}
+        className={`${isTaskMode ? 'px-3 pb-3' : 'px-4 pb-4'} cursor-text overflow-hidden`}
         style={{ minHeight: minHeight - headerHeight - 16 }}
         onMouseDown={handleContentMouseDown}
         onClick={handleContentClick}
       >
-        <div
-          ref={contentRef}
-          style={{ pointerEvents: isEditing ? 'auto' : 'none' }}
-        >
-          <TiptapEditor
-            content={sticky.content}
-            onChange={handleContentChange}
-            onBlur={handleBlur}
-            onDeleteEmpty={() => onDelete(sticky.id)}
-            placeholder={isTaskMode ? "Task..." : "Type here..."}
-            autoFocus={isEditing}
-            editable={isEditing}
-            focusCoords={clickCoords}
-          />
+        <div ref={contentRef}>
+          {isEditing ? (
+            <TiptapEditor
+              content={sticky.content}
+              onChange={handleContentChange}
+              onBlur={handleBlur}
+              onDeleteEmpty={() => onDelete(sticky.id)}
+              placeholder={isTaskMode ? "Task..." : "Type here..."}
+              editable={true}
+              focusCoords={clickCoords}
+            />
+          ) : (
+            <div
+              className="sticky-content outline-none min-h-[60px] text-sm"
+              dangerouslySetInnerHTML={{ __html: sticky.content || '<p class="is-editor-empty" data-placeholder="Type here..."></p>' }}
+            />
+          )}
         </div>
       </div>
     </div>
     </>
   )
 }
+
+// Export with original name for backwards compatibility
+export { StickyComponent as Sticky }

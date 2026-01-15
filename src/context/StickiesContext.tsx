@@ -97,6 +97,9 @@ interface StickiesContextValue {
   // Export/Import
   exportData: () => ThoughtCanvasExport
   importData: (data: ThoughtCanvasExport, mode: ImportMode) => void
+
+  // Debug/Testing
+  generateTestStickies: (count?: number) => void
 }
 
 const StickiesContext = createContext<StickiesContextValue | null>(null)
@@ -183,7 +186,6 @@ const generateExampleStickies = (): Sticky[] => {
   const yesterday = getDateString(1)
   const twoDaysAgo = getDateString(2)
 
-  // Pre-calculated heights based on content (header 20px + content + padding 32px, snapped to 16px grid)
   return [
     // 2 days ago - Project planning (top-left)
     {
@@ -199,7 +201,7 @@ const generateExampleStickies = (): Sticky[] => {
       date: twoDaysAgo,
       zIndex: 1,
       color: 'blue' as const,
-      measuredHeight: 160
+      measuredHeight: 148,
     },
     {
       id: 'example-2',
@@ -213,7 +215,7 @@ const generateExampleStickies = (): Sticky[] => {
       y: 96,
       date: twoDaysAgo,
       zIndex: 2,
-      measuredHeight: 160
+      measuredHeight: 148,
     },
 
     // Yesterday - Active work (top-right, with gap from 2-days-ago group)
@@ -230,7 +232,7 @@ const generateExampleStickies = (): Sticky[] => {
       date: yesterday,
       zIndex: 3,
       color: 'green' as const,
-      measuredHeight: 176
+      measuredHeight: 148,
     },
     {
       id: 'example-4',
@@ -244,7 +246,7 @@ const generateExampleStickies = (): Sticky[] => {
       y: 96,
       date: yesterday,
       zIndex: 4,
-      measuredHeight: 160
+      measuredHeight: 148,
     },
 
     // Today - Getting started (bottom-left)
@@ -262,7 +264,7 @@ const generateExampleStickies = (): Sticky[] => {
       date: today,
       zIndex: 5,
       color: 'yellow' as const,
-      measuredHeight: 192
+      measuredHeight: 172,
     },
     {
       id: 'example-6',
@@ -276,7 +278,7 @@ const generateExampleStickies = (): Sticky[] => {
       y: 368,
       date: today,
       zIndex: 6,
-      measuredHeight: 160
+      measuredHeight: 148,
     }
   ]
 }
@@ -405,6 +407,33 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       }
     })
   }, [showTasks, taskViewMode, filters])
+
+  // Expose debug/utility functions on window for console use
+  useEffect(() => {
+    // Add trailing empty paragraph to all stickies (ensures consistent edit/view height)
+    (window as unknown as Record<string, unknown>).__addTrailingLineToAll = () => {
+      setStickies(prev => prev.map(s => ({
+        ...s,
+        content: s.content.endsWith('<p></p>') ? s.content : s.content + '<p></p>'
+      })))
+      console.log('Added trailing <p></p> to all stickies')
+    }
+
+    // Add trailing empty paragraph to a specific sticky by id
+    (window as unknown as Record<string, unknown>).__addTrailingLine = (id: string) => {
+      setStickies(prev => prev.map(s =>
+        s.id === id && !s.content.endsWith('<p></p>')
+          ? { ...s, content: s.content + '<p></p>' }
+          : s
+      ))
+      console.log(`Added trailing <p></p> to sticky ${id}`)
+    }
+
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__addTrailingLineToAll
+      delete (window as unknown as Record<string, unknown>).__addTrailingLine
+    }
+  }, [])
 
   // Push to history stack (debounced for drag operations)
   const pushHistory = useCallback((newStickies: Sticky[]) => {
@@ -720,6 +749,55 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       })
     }
   }, [offset, stickies, pushHistory, setOffset])
+
+  // Generate test stickies for performance testing
+  const generateTestStickies = useCallback((count: number = 100) => {
+    // Safety limit
+    if (count > 2000) {
+      console.warn('Limiting to 2000 stickies for safety')
+      count = 2000
+    }
+
+    const todayDate = getTodayISO()
+    const testContent = `<ul data-type="taskList"><li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>First task item</p></div></li><li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Second task item</p></div></li></ul><ul><li><p>Bullet point one</p></li><li><p>Bullet point two</p></li><li><p>Bullet point three</p></li></ul>`
+
+    // Pre-calculate height (skip measurement for test stickies)
+    const measuredHeight = 176 // Pre-measured height for this content
+
+    // Calculate grid layout - arrange in columns
+    const columns = Math.ceil(Math.sqrt(count))
+    const stickyTotalWidth = STICKY_WIDTH + STICKY_GAP
+    const stickyTotalHeight = measuredHeight + STICKY_GAP
+
+    const newStickies: Sticky[] = []
+    const baseId = Date.now()
+
+    for (let i = 0; i < count; i++) {
+      const col = i % columns
+      const row = Math.floor(i / columns)
+
+      newStickies.push({
+        id: `${baseId}-${i}`,
+        content: testContent,
+        x: snap(col * stickyTotalWidth + 100),
+        y: snap(row * stickyTotalHeight + 100),
+        date: todayDate,
+        zIndex: i + 1,
+        measuredHeight, // Pre-set to avoid 100 measurement updates
+      })
+    }
+
+    // Replace all stickies (don't add to existing)
+    setStickies(newStickies)
+
+    // Center on the new stickies
+    setOffset({
+      x: -100 + window.innerWidth / 4,
+      y: -100 + window.innerHeight / 4
+    })
+
+    console.log(`Generated ${count} test stickies (replaced existing)`)
+  }, [setOffset])
 
   // Track current editing id synchronously (refs update immediately, state is async)
   const editingIdRef = useRef<string | null>(null)
@@ -1185,7 +1263,8 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   }, [stickies, pushHistory])
 
   // Arrange all cards in all groups, then arrange groups - all in one atomic update
-  const arrangeAll = useCallback(() => {
+  // Optional heightOverrides: map of sticky ID -> height to use instead of stored measuredHeight
+  const arrangeAll = useCallback((heightOverrides?: Map<string, number>) => {
     let workingStickies = [...stickies]
     const regularStickies = workingStickies.filter(s => s.date !== TASKS_GROUP_DATE)
     const dates = [...new Set(regularStickies.map(s => s.date))]
@@ -1199,7 +1278,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
         id: s.id,
         x: s.x,
         y: s.y,
-        h: getStickyHeight(s.content, s.measuredHeight)
+        h: heightOverrides?.get(s.id) ?? getStickyHeight(s.content, s.measuredHeight)
       }))
 
       const cardsOverlap = (a: typeof cards[0], b: typeof cards[0]) => {
@@ -1449,7 +1528,31 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       // Cmd+Shift+G: Arrange all cards and groups in one go
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'g') {
         e.preventDefault()
-        arrangeAll()
+        // If editing, measure the current DOM height and pass it as an override
+        // (since measuredHeight isn't updated while editing to prevent visual jumps)
+        if (editingId) {
+          // Find the editing sticky by looking for the one with the editor
+          const allStickyEls = document.querySelectorAll('[data-sticky]')
+          let heightOverrides: Map<string, number> | undefined
+
+          for (const stickyEl of allStickyEls) {
+            if (stickyEl.querySelector('.ProseMirror')) {
+              // Found the editing sticky - measure its content height
+              const contentDiv = stickyEl.querySelector('div > div:last-child > div')
+              if (contentDiv) {
+                const contentHeight = (contentDiv as HTMLElement).offsetHeight
+                const headerHeight = 20 // Regular sticky header
+                const rawHeight = Math.max(MIN_STICKY_HEIGHT, contentHeight + headerHeight + 32)
+                const snappedHeight = Math.ceil(rawHeight / GRID_SIZE) * GRID_SIZE
+                heightOverrides = new Map([[editingId, snappedHeight]])
+              }
+              break
+            }
+          }
+          arrangeAll(heightOverrides)
+        } else {
+          arrangeAll()
+        }
         return
       }
 
@@ -2076,7 +2179,13 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     getStickyHeight,
     exportData,
     importData,
+    generateTestStickies,
   }
+
+  // Expose to window for console testing
+  useEffect(() => {
+    (window as unknown as { __generateTestStickies: typeof generateTestStickies }).__generateTestStickies = generateTestStickies
+  }, [generateTestStickies])
 
   return (
     <StickiesContext.Provider value={value}>

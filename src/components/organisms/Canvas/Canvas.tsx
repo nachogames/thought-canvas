@@ -53,6 +53,16 @@ export function Canvas({ children }: CanvasProps) {
   // Check if overlay mode is active
   const showOverlay = showTasks && taskViewMode === 'overlay'
 
+  // Memoized update handler for task stickies (avoids re-render on every Canvas render)
+  const handleTaskStickyUpdate = useCallback((id: string, updates: Partial<import('@/types').Sticky>) => {
+    // Bidirectional sync: update source sticky when content changes
+    if (updates.content !== undefined) {
+      updateTaskStickyContent(id, updates.content)
+    } else {
+      updateSticky(id, updates)
+    }
+  }, [updateTaskStickyContent, updateSticky])
+
   // ? key to toggle help (when not editing)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -342,7 +352,7 @@ export function Canvas({ children }: CanvasProps) {
       <CanvasBackground offsetX={offset.x} offsetY={offset.y} />
 
       <div
-        className="canvas-bg absolute"
+        className={`canvas-bg absolute ${isDragging ? 'is-dragging' : ''}`}
         style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
       >
         {/* Day groups */}
@@ -391,7 +401,6 @@ export function Canvas({ children }: CanvasProps) {
             isEditing={editingId === sticky.id}
             onSetEditing={setEditingId}
             onRequestPan={startPan}
-            isDragging={isDragging}
           />
         ))}
 
@@ -400,14 +409,7 @@ export function Canvas({ children }: CanvasProps) {
           <Sticky
             key={sticky.id}
             sticky={sticky}
-            onUpdate={(id, updates) => {
-              // Bidirectional sync: update source sticky when content changes
-              if (updates.content !== undefined) {
-                updateTaskStickyContent(id, updates.content)
-              } else {
-                updateSticky(id, updates)
-              }
-            }}
+            onUpdate={handleTaskStickyUpdate}
             onDelete={deleteSticky}
             onDragStart={startDrag}
             isSelected={selectedIds.has(sticky.id)}
@@ -417,7 +419,6 @@ export function Canvas({ children }: CanvasProps) {
             onToggleTodo={toggleTaskTodo}
             onFocusSource={panToSticky}
             onRequestPan={startPan}
-            isDragging={isDragging}
           />
         ))}
       </div>

@@ -3,6 +3,7 @@ import StarterKit from '@tiptap/starter-kit'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItem from '@tiptap/extension-task-item'
 import Placeholder from '@tiptap/extension-placeholder'
+import Link from '@tiptap/extension-link'
 import { SlashCommands } from './SlashCommands'
 import { TwoStepBackspace } from './TwoStepBackspace'
 import { useEffect } from 'react'
@@ -13,7 +14,6 @@ interface TiptapEditorProps {
   onBlur?: () => void
   onDeleteEmpty?: () => void  // Called when backspace on empty content
   placeholder?: string
-  autoFocus?: boolean
   editable?: boolean
   focusCoords?: { x: number; y: number } | null
 }
@@ -24,7 +24,6 @@ export function TiptapEditor({
   onBlur,
   onDeleteEmpty,
   placeholder = "Type '/' for commands...",
-  autoFocus = false,
   editable = true,
   focusCoords = null,
 }: TiptapEditorProps) {
@@ -36,23 +35,32 @@ export function TiptapEditor({
         blockquote: false,
         horizontalRule: false,
         code: false,
+        // Disable built-in link - we use our own configured Link extension
+        link: false,
       }),
       TaskList,
       TaskItem.configure({
         nested: true,
-        HTMLAttributes: {
-          class: 'flex items-start gap-2',
-        },
       }),
       Placeholder.configure({
         placeholder,
+      }),
+      Link.configure({
+        openOnClick: false, // Don't open links while editing
+        autolink: true, // Auto-detect URLs as you type
+        linkOnPaste: true, // Convert pasted URLs to links
+        HTMLAttributes: {
+          class: 'text-accent underline cursor-pointer',
+          rel: 'noopener noreferrer',
+          target: '_blank',
+        },
       }),
       SlashCommands,
       TwoStepBackspace,
     ],
     content,
     editable,
-    autofocus: autoFocus ? 'end' : false,
+    autofocus: false,
     onUpdate: ({ editor }) => {
       onChange(editor.getHTML())
     },
@@ -119,6 +127,27 @@ export function TiptapEditor({
           return true
         }
 
+        // Cmd+K: Add/edit link
+        if (isMod && event.key === 'k') {
+          event.preventDefault()
+          const previousUrl = editor?.getAttributes('link').href || ''
+          const url = window.prompt('Enter URL:', previousUrl)
+
+          if (url === null) {
+            // User cancelled
+            return true
+          }
+
+          if (url === '') {
+            // Remove link
+            editor?.chain().focus().unsetLink().run()
+          } else {
+            // Set link
+            editor?.chain().focus().extendMarkRange('link').setLink({ href: url }).run()
+          }
+          return true
+        }
+
         return false
       },
     },
@@ -136,19 +165,26 @@ export function TiptapEditor({
     if (!editor) return
     editor.setEditable(editable)
     if (editable) {
-      // Focus the editor when it becomes editable
-      if (focusCoords) {
-        // Try to position cursor at click location
-        const pos = editor.view.posAtCoords({ left: focusCoords.x, top: focusCoords.y })
-        if (pos) {
-          editor.commands.focus()
-          editor.commands.setTextSelection(pos.pos)
-        } else {
+      // Use requestAnimationFrame to ensure DOM is ready before positioning cursor
+      requestAnimationFrame(() => {
+        try {
+          if (focusCoords) {
+            // Try to position cursor at click location
+            const pos = editor.view.posAtCoords({ left: focusCoords.x, top: focusCoords.y })
+            if (pos && pos.pos > 0) {
+              editor.commands.focus()
+              editor.commands.setTextSelection(pos.pos)
+            } else {
+              editor.commands.focus('end')
+            }
+          } else {
+            editor.commands.focus('end')
+          }
+        } catch {
+          // Fallback if text selection fails (e.g., empty document)
           editor.commands.focus('end')
         }
-      } else {
-        editor.commands.focus('end')
-      }
+      })
     }
   }, [editable, editor, focusCoords])
 
