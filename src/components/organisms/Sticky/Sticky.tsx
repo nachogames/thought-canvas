@@ -7,6 +7,33 @@ import { useLongPress } from '@/hooks'
 import { useStickies } from '@/context/StickiesContext'
 import type { Sticky as StickyType, StickyColor } from '@/types'
 
+// Component that renders sticky content and syncs checkbox states
+function StickyContentView({ content }: { content: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Sync checkbox checked property with data-checked attribute after render
+  useEffect(() => {
+    if (!ref.current) return
+
+    const taskItems = ref.current.querySelectorAll('li[data-type="taskItem"]')
+    taskItems.forEach((item) => {
+      const checkbox = item.querySelector('input[type="checkbox"]') as HTMLInputElement | null
+      if (checkbox) {
+        const isChecked = item.getAttribute('data-checked') === 'true'
+        checkbox.checked = isChecked
+      }
+    })
+  }, [content])
+
+  return (
+    <div
+      ref={ref}
+      className="sticky-content outline-none text-sm"
+      dangerouslySetInnerHTML={{ __html: content || '<p class="is-editor-empty" data-placeholder="Type here..."></p>' }}
+    />
+  )
+}
+
 interface StickyProps {
   sticky: StickyType
   onUpdate: (id: string, updates: Partial<StickyType>) => void
@@ -453,10 +480,7 @@ const StickyComponent = function Sticky({
               focusCoords={clickCoords}
             />
           ) : (
-            <div
-              className="sticky-content outline-none text-sm"
-              dangerouslySetInnerHTML={{ __html: sticky.content || '<p class="is-editor-empty" data-placeholder="Type here..."></p>' }}
-            />
+            <StickyContentView content={sticky.content} />
           )}
         </div>
       </div>
