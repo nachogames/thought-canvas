@@ -536,7 +536,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
             const h = getStickyHeight(s.content, s.measuredHeight)
             return Math.max(max, s.y + h)
           }, 0)
-          posY = snap(maxY + STICKY_GAP)
+          posY = maxY + STICKY_GAP
         }
       }
 
@@ -706,7 +706,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       const maxRowWidth = (STICKY_WIDTH + STICKY_GAP) * 3
       if (wouldOverlap(newX, newY) || (newX - minX) >= maxRowWidth) {
         newX = snap(minX)
-        newY = snap(maxY + STICKY_GAP)
+        newY = maxY + STICKY_GAP
       }
 
       // Keep trying positions if still overlapping
@@ -1004,18 +1004,19 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
             const cardJ = cards[j]
 
             // Calculate how much we need to move to clear the overlap
-            const pushRight = snap(cardI.x + STICKY_WIDTH + STICKY_GAP) - cardJ.x
-            const pushDown = snap(cardI.y + cardI.h + STICKY_GAP) - cardJ.y
+            // X stays snapped (STICKY_WIDTH is grid-aligned), Y is not snapped (for exact gaps)
+            const pushRight = snap(cardI.x + STICKY_WIDTH) + STICKY_GAP - cardJ.x
+            const pushDown = (cardI.y + cardI.h + STICKY_GAP) - cardJ.y
 
             // Choose the smaller push (prefer moving right if equal)
             if (pushRight <= pushDown && pushRight > 0) {
-              cardJ.x = snap(cardI.x + STICKY_WIDTH + STICKY_GAP)
+              cardJ.x = snap(cardI.x + STICKY_WIDTH) + STICKY_GAP
             } else if (pushDown > 0) {
-              cardJ.y = snap(cardI.y + cardI.h + STICKY_GAP)
+              cardJ.y = cardI.y + cardI.h + STICKY_GAP
             } else {
               // Both pushes are negative/zero, card j is already clear in that direction
               // Push right as fallback
-              cardJ.x = snap(cardI.x + STICKY_WIDTH + STICKY_GAP)
+              cardJ.x = snap(cardI.x + STICKY_WIDTH) + STICKY_GAP
             }
           }
         }
@@ -1062,7 +1063,8 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
           if (horzOverlap && other.y < card.y) {
             // Other card is above and overlaps horizontally - it blocks us
-            targetY = Math.max(targetY, snap(other.y + other.h + STICKY_GAP))
+            // Don't snap Y - use exact position for consistent gaps
+            targetY = Math.max(targetY, other.y + other.h + STICKY_GAP)
           }
         }
 
@@ -1155,16 +1157,17 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
             const boxJ = groupBoxes[j]
 
             // Calculate how much to move to clear the overlap
-            const pushRight = snap(boxI.x + boxI.width + STICKY_GAP) - boxJ.x
-            const pushDown = snap(boxI.y + boxI.height + STICKY_GAP) - boxJ.y
+            // For groups, don't snap Y to ensure consistent gaps
+            const pushRight = snap(boxI.x + boxI.width) + STICKY_GAP - boxJ.x
+            const pushDown = (boxI.y + boxI.height + STICKY_GAP) - boxJ.y
 
             // Choose the smaller push (prefer moving right if equal)
             if (pushRight <= pushDown && pushRight > 0) {
-              boxJ.x = snap(boxI.x + boxI.width + STICKY_GAP)
+              boxJ.x = snap(boxI.x + boxI.width) + STICKY_GAP
             } else if (pushDown > 0) {
-              boxJ.y = snap(boxI.y + boxI.height + STICKY_GAP)
+              boxJ.y = boxI.y + boxI.height + STICKY_GAP
             } else {
-              boxJ.x = snap(boxI.x + boxI.width + STICKY_GAP)
+              boxJ.x = snap(boxI.x + boxI.width) + STICKY_GAP
             }
           }
         }
@@ -1196,7 +1199,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
           if (vertOverlap && other.x < group.x) {
             // Other group is to the left and overlaps vertically - it blocks us
-            targetX = Math.max(targetX, snap(other.x + other.width + STICKY_GAP))
+            targetX = Math.max(targetX, snap(other.x + other.width) + STICKY_GAP)
           }
         }
 
@@ -1211,7 +1214,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
           if (horzOverlap && other.y < group.y) {
             // Other group is above and overlaps horizontally - it blocks us
-            targetY = Math.max(targetY, snap(other.y + other.height + STICKY_GAP))
+            targetY = Math.max(targetY, other.y + other.height + STICKY_GAP)
           }
         }
 
@@ -1299,14 +1302,14 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
           for (let j = i + 1; j < cards.length; j++) {
             if (cardsOverlap(cards[i], cards[j])) {
               hasOverlap = true
-              const pushRight = snap(cards[i].x + STICKY_WIDTH + STICKY_GAP) - cards[j].x
-              const pushDown = snap(cards[i].y + cards[i].h + STICKY_GAP) - cards[j].y
+              const pushRight = snap(cards[i].x + STICKY_WIDTH) + STICKY_GAP - cards[j].x
+              const pushDown = (cards[i].y + cards[i].h + STICKY_GAP) - cards[j].y
               if (pushRight <= pushDown && pushRight > 0) {
-                cards[j].x = snap(cards[i].x + STICKY_WIDTH + STICKY_GAP)
+                cards[j].x = snap(cards[i].x + STICKY_WIDTH) + STICKY_GAP
               } else if (pushDown > 0) {
-                cards[j].y = snap(cards[i].y + cards[i].h + STICKY_GAP)
+                cards[j].y = cards[i].y + cards[i].h + STICKY_GAP
               } else {
-                cards[j].x = snap(cards[i].x + STICKY_WIDTH + STICKY_GAP)
+                cards[j].x = snap(cards[i].x + STICKY_WIDTH) + STICKY_GAP
               }
             }
           }
@@ -1328,7 +1331,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
             const vertOverlap = !(card.y + card.h + STICKY_GAP <= other.y ||
                                   other.y + other.h + STICKY_GAP <= card.y)
             if (vertOverlap && other.x < card.x) {
-              targetX = Math.max(targetX, snap(other.x + STICKY_WIDTH + STICKY_GAP))
+              targetX = Math.max(targetX, snap(other.x + STICKY_WIDTH) + STICKY_GAP)
             }
           }
           let targetY = anchorY
@@ -1337,7 +1340,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
             const horzOverlap = !(targetX + STICKY_WIDTH + STICKY_GAP <= other.x ||
                                   other.x + STICKY_WIDTH + STICKY_GAP <= targetX)
             if (horzOverlap && other.y < card.y) {
-              targetY = Math.max(targetY, snap(other.y + other.h + STICKY_GAP))
+              targetY = Math.max(targetY, other.y + other.h + STICKY_GAP)
             }
           }
           if (targetX !== card.x || targetY !== card.y) {
@@ -1399,14 +1402,14 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
           for (let j = i + 1; j < groupBoxes.length; j++) {
             if (groupsOverlap(groupBoxes[i], groupBoxes[j])) {
               hasOverlap = true
-              const pushRight = snap(groupBoxes[i].x + groupBoxes[i].width + STICKY_GAP) - groupBoxes[j].x
-              const pushDown = snap(groupBoxes[i].y + groupBoxes[i].height + STICKY_GAP) - groupBoxes[j].y
+              const pushRight = snap(groupBoxes[i].x + groupBoxes[i].width) + STICKY_GAP - groupBoxes[j].x
+              const pushDown = (groupBoxes[i].y + groupBoxes[i].height + STICKY_GAP) - groupBoxes[j].y
               if (pushRight <= pushDown && pushRight > 0) {
-                groupBoxes[j].x = snap(groupBoxes[i].x + groupBoxes[i].width + STICKY_GAP)
+                groupBoxes[j].x = snap(groupBoxes[i].x + groupBoxes[i].width) + STICKY_GAP
               } else if (pushDown > 0) {
-                groupBoxes[j].y = snap(groupBoxes[i].y + groupBoxes[i].height + STICKY_GAP)
+                groupBoxes[j].y = groupBoxes[i].y + groupBoxes[i].height + STICKY_GAP
               } else {
-                groupBoxes[j].x = snap(groupBoxes[i].x + groupBoxes[i].width + STICKY_GAP)
+                groupBoxes[j].x = snap(groupBoxes[i].x + groupBoxes[i].width) + STICKY_GAP
               }
             }
           }
@@ -1428,7 +1431,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
             const vertOverlap = !(group.y + group.height + STICKY_GAP <= other.y ||
                                   other.y + other.height + STICKY_GAP <= group.y)
             if (vertOverlap && other.x < group.x) {
-              targetX = Math.max(targetX, snap(other.x + other.width + STICKY_GAP))
+              targetX = Math.max(targetX, snap(other.x + other.width) + STICKY_GAP)
             }
           }
           let targetY = anchorY
@@ -1437,7 +1440,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
             const horzOverlap = !(targetX + group.width + STICKY_GAP <= other.x ||
                                   other.x + other.width + STICKY_GAP <= targetX)
             if (horzOverlap && other.y < group.y) {
-              targetY = Math.max(targetY, snap(other.y + other.height + STICKY_GAP))
+              targetY = Math.max(targetY, other.y + other.height + STICKY_GAP)
             }
           }
           if (targetX !== group.x || targetY !== group.y) {
@@ -1537,14 +1540,10 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
           for (const stickyEl of allStickyEls) {
             if (stickyEl.querySelector('.ProseMirror')) {
-              // Found the editing sticky - measure its content height
-              const contentDiv = stickyEl.querySelector('div > div:last-child > div')
-              if (contentDiv) {
-                const contentHeight = (contentDiv as HTMLElement).offsetHeight
-                const headerHeight = 20 // Regular sticky header
-                const rawHeight = Math.max(MIN_STICKY_HEIGHT, contentHeight + headerHeight + 32)
-                const snappedHeight = Math.ceil(rawHeight / GRID_SIZE) * GRID_SIZE
-                heightOverrides = new Map([[editingId, snappedHeight]])
+              // Found the editing sticky - measure its actual container height directly
+              const actualHeight = (stickyEl as HTMLElement).offsetHeight
+              if (actualHeight > 0) {
+                heightOverrides = new Map([[editingId, actualHeight]])
               }
               break
             }

@@ -1,14 +1,10 @@
 import { useRef, useState, useLayoutEffect, useCallback, useEffect, useMemo } from 'react'
 import { Trash2, Palette, Check } from 'lucide-react'
-import { STICKY_WIDTH, TASK_STICKY_WIDTH, MIN_STICKY_HEIGHT, MIN_TASK_STICKY_HEIGHT, STICKY_GAP, GRID_SIZE, STICKY_COLORS, STICKY_COLOR_ORDER } from '@/constants'
+import { STICKY_WIDTH, TASK_STICKY_WIDTH, MIN_STICKY_HEIGHT, MIN_TASK_STICKY_HEIGHT, STICKY_COLORS, STICKY_COLOR_ORDER } from '@/constants'
 import { TiptapEditor } from '@/components/molecules/TiptapEditor'
-import { getStickyHeight } from '@/utils/textMeasurement'
 import { parseContent } from '@/utils/parseContent'
 import { useLongPress } from '@/hooks'
 import type { Sticky as StickyType, StickyColor } from '@/types'
-
-// Debug: show collision boxes (set to true to visualize)
-const DEBUG_COLLISION_BOXES = false
 
 interface StickyProps {
   sticky: StickyType
@@ -48,7 +44,6 @@ const StickyComponent = function Sticky({
   const containerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const colorPickerRef = useRef<HTMLDivElement>(null)
-  const [contentHeight, setContentHeight] = useState(0)
   const [clickCoords, setClickCoords] = useState<{ x: number; y: number } | null>(null)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [isLongPressing, setIsLongPressing] = useState(false)
@@ -56,6 +51,7 @@ const StickyComponent = function Sticky({
   const isTaskMode = variant === 'task'
   const width = isTaskMode ? TASK_STICKY_WIDTH : STICKY_WIDTH
   const minHeight = isTaskMode ? MIN_TASK_STICKY_HEIGHT : MIN_STICKY_HEIGHT
+  const headerHeight = isTaskMode ? 16 : 20
 
   // Show checkbox for task stickies (isTask flag) even without variant="task"
   const showCheckbox = sticky.isTask === true || isTaskMode
@@ -107,31 +103,19 @@ const StickyComponent = function Sticky({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showColorPicker])
 
-  // Track last reported height to avoid redundant updates
-  const lastReportedHeightRef = useRef<number | undefined>(sticky.measuredHeight)
-
-  // Measure content height and report to parent for collision detection
+  // Measure actual rendered height from DOM and report to parent for collision detection
   useLayoutEffect(() => {
-    if (contentRef.current) {
-      const newContentHeight = contentRef.current.offsetHeight
-      setContentHeight(newContentHeight)
+    if (containerRef.current) {
+      const actualHeight = containerRef.current.offsetHeight
 
-      // Calculate total height same as render, snapped to grid
-      const headerHeight = isTaskMode ? 16 : 20
-      const rawHeight = Math.max(minHeight, newContentHeight + headerHeight + 32)
-      const snappedHeight = Math.ceil(rawHeight / GRID_SIZE) * GRID_SIZE
-
-      // Report measured height if different (for collision detection)
-      // Use ref to track what we've reported to avoid loops
-      if (lastReportedHeightRef.current !== snappedHeight) {
-        lastReportedHeightRef.current = snappedHeight
-        // Defer the update to avoid triggering during render
+      // Update if stored height doesn't match actual DOM height
+      if (sticky.measuredHeight !== actualHeight) {
         queueMicrotask(() => {
-          onUpdate(sticky.id, { measuredHeight: snappedHeight })
+          onUpdate(sticky.id, { measuredHeight: actualHeight })
         })
       }
     }
-  }, [sticky.content, sticky.id, onUpdate, isTaskMode, minHeight])
+  }, [sticky.content, sticky.id, sticky.measuredHeight, onUpdate])
 
   const handleContentChange = useCallback((html: string) => {
     onUpdate(sticky.id, { content: html })
@@ -231,14 +215,6 @@ const StickyComponent = function Sticky({
     }
   }, [sticky.sourceId, onFocusSource])
 
-  // Calculate height based on actual content, snapped to grid for consistent spacing
-  const headerHeight = isTaskMode ? 16 : 20
-  const rawHeight = Math.max(
-    minHeight,
-    contentHeight + headerHeight + 32 // header + content padding (16 top + 16 bottom)
-  )
-  const calculatedHeight = Math.ceil(rawHeight / GRID_SIZE) * GRID_SIZE
-
   // Shadow classes
   const shadowClass = isEditing
     ? 'ring-2 ring-indigo-400 shadow-xl'
@@ -252,47 +228,11 @@ const StickyComponent = function Sticky({
   const bgClass = colorConfig.bg
   const headerClass = isSelected ? colorConfig.header : ''
 
-  // Height the collision algorithm calculates (from text content)
-  const collisionHeight = getStickyHeight(sticky.content, sticky.measuredHeight)
-
   // Opacity for completed tasks
   const completedOpacity = showCheckbox && todoInfo.checked ? 'opacity-50' : ''
 
   return (
     <>
-      {/* Debug: Shows collision zones - cyan boxes should just TOUCH, not overlap */}
-      {DEBUG_COLLISION_BOXES && (
-        <>
-          {/* CYAN: 10px buffer on each side - when two cyan boxes TOUCH, that's 20px gap */}
-          <div
-            className="absolute pointer-events-none"
-            style={{
-              left: sticky.x - STICKY_GAP / 2,
-              top: sticky.y - STICKY_GAP / 2,
-              width: width + STICKY_GAP,
-              height: collisionHeight + STICKY_GAP,
-              border: '2px solid rgba(0, 255, 255, 0.5)',
-              borderRadius: 12,
-              zIndex: 0,
-            }}
-          />
-          {/* Debug label */}
-          <div
-            className="absolute pointer-events-none text-xs font-mono"
-            style={{
-              left: sticky.x + width + 4,
-              top: sticky.y,
-              color: collisionHeight !== calculatedHeight ? 'red' : 'lime',
-              zIndex: 9999,
-              background: 'rgba(0,0,0,0.8)',
-              padding: '2px 4px',
-              borderRadius: 4,
-            }}
-          >
-            H:{collisionHeight}
-          </div>
-        </>
-      )}
       <div
         ref={containerRef}
         data-sticky
@@ -311,7 +251,6 @@ const StickyComponent = function Sticky({
           top: sticky.y,
           width: width,
           minHeight: minHeight,
-          height: calculatedHeight,
           zIndex: isEditing ? 9999 : isSelected ? 100 : sticky.zIndex || 1,
         }}
         onClick={(e) => e.stopPropagation()}
@@ -439,7 +378,7 @@ const StickyComponent = function Sticky({
             />
           ) : (
             <div
-              className="sticky-content outline-none min-h-[60px] text-sm"
+              className="sticky-content outline-none text-sm"
               dangerouslySetInnerHTML={{ __html: sticky.content || '<p class="is-editor-empty" data-placeholder="Type here..."></p>' }}
             />
           )}

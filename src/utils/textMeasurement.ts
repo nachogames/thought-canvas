@@ -94,34 +94,23 @@ const getMeasureDiv = (): HTMLDivElement => {
 }
 
 /**
- * Snap height to grid for consistent vertical gaps.
- */
-const snapHeightToGrid = (height: number): number => {
-  const GRID = 16  // Must match GRID_SIZE
-  return Math.ceil(height / GRID) * GRID
-}
-
-/**
  * Get sticky height - prefers stored measuredHeight, falls back to estimation.
  * Height is snapped to grid for consistent vertical spacing.
  */
 export const getStickyHeight = (content: string, measuredHeight?: number): number => {
-  let height: number
-
   if (measuredHeight !== undefined) {
-    // Use actual measured height
-    height = measuredHeight
-  } else {
-    // Fallback: render to hidden div and measure
-    const div = getMeasureDiv()
-    div.innerHTML = content
-    const contentHeight = div.offsetHeight
-    // Match Sticky component: header (20px) + content + padding (16 top + 16 bottom)
-    height = contentHeight + 20 + 32
+    // Use actual measured height from DOM - already accurate
+    return measuredHeight
   }
 
-  // Snap to grid for consistent gaps
-  return snapHeightToGrid(Math.max(height, MIN_STICKY_HEIGHT))
+  // Fallback: render to hidden div and measure
+  const div = getMeasureDiv()
+  div.innerHTML = content
+  const contentHeight = div.offsetHeight
+  // Match Sticky component: header (20px) + content + bottom padding (16px)
+  const height = contentHeight + 20 + 16
+
+  return Math.max(height, MIN_STICKY_HEIGHT)
 }
 
 /**

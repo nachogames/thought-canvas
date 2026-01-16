@@ -69,7 +69,7 @@ export function TiptapEditor({
     },
     editorProps: {
       attributes: {
-        class: 'outline-none min-h-[60px] text-sm',
+        class: 'outline-none text-sm',
       },
       // Keyboard shortcuts for block transformations
       handleKeyDown: (_view, event) => {

@@ -1,13 +1,208 @@
 import { useRef, useEffect, useMemo, useCallback, useState, type ReactNode } from 'react'
 import { HelpCircle, X } from 'lucide-react'
 import { useStickies, useIsMobile } from '@/hooks'
-import { STICKY_WIDTH } from '@/constants'
+import { STICKY_WIDTH, STICKY_GAP } from '@/constants'
 import { CanvasBackground } from './CanvasBackground'
 import { Sticky } from '../Sticky'
 import { DayGroup } from '../DayGroup'
-import type { DayGroup as DayGroupType } from '@/types'
+import type { DayGroup as DayGroupType, Sticky as StickyType } from '@/types'
 
 const TASKS_GROUP_DATE = '__tasks__'
+
+// Debug: visualize gaps between stickies
+const DEBUG_GAPS = false
+
+interface GapRect {
+  x: number
+  y: number
+  width: number
+  height: number
+  type: 'horizontal' | 'vertical'
+  actualGap: number
+}
+
+function GapDebugOverlay({ stickies, getStickyHeight }: { stickies: StickyType[], getStickyHeight: (content: string, measuredHeight?: number) => number }) {
+  if (!DEBUG_GAPS) return null
+
+  const gaps: GapRect[] = []
+
+  // Group stickies by date
+  const byDate: Record<string, StickyType[]> = {}
+  stickies.forEach(s => {
+    const date = s.date || 'unknown'
+    if (!byDate[date]) byDate[date] = []
+    byDate[date].push(s)
+  })
+
+  // Helper: check if another sticky blocks the gap between a and b
+  const hasBlockingSticky = (
+    groupStickies: StickyType[],
+    a: StickyType,
+    b: StickyType,
+    aBottom: number,
+    direction: 'vertical' | 'horizontal'
+  ): boolean => {
+    const aHeight = getStickyHeight(a.content, a.measuredHeight)
+    const bHeight = getStickyHeight(b.content, b.measuredHeight)
+
+    for (const c of groupStickies) {
+      if (c.id === a.id || c.id === b.id) continue
+      const cHeight = getStickyHeight(c.content, c.measuredHeight)
+
+      if (direction === 'vertical') {
+        // Check if c is horizontally overlapping with both a and b
+        const cOverlapsA = !(c.x + STICKY_WIDTH <= a.x || a.x + STICKY_WIDTH <= c.x)
+        const cOverlapsB = !(c.x + STICKY_WIDTH <= b.x || b.x + STICKY_WIDTH <= c.x)
+        if (cOverlapsA && cOverlapsB) {
+          // Check if c is vertically between a and b
+          const gapTop = Math.min(aBottom, b.y + bHeight)
+          const gapBottom = Math.max(aBottom, b.y)
+          if (c.y < gapBottom && c.y + cHeight > gapTop) {
+            return true // c blocks the gap
+          }
+        }
+      } else {
+        // Horizontal: check if c is vertically overlapping with both a and b
+        const cOverlapsA = !(c.y + cHeight <= a.y || a.y + aHeight <= c.y)
+        const cOverlapsB = !(c.y + cHeight <= b.y || b.y + bHeight <= c.y)
+        if (cOverlapsA && cOverlapsB) {
+          // Check if c is horizontally between a and b
+          const gapLeft = Math.min(a.x + STICKY_WIDTH, b.x + STICKY_WIDTH)
+          const gapRight = Math.max(a.x, b.x)
+          if (c.x < gapRight && c.x + STICKY_WIDTH > gapLeft) {
+            return true // c blocks the gap
+          }
+        }
+      }
+    }
+    return false
+  }
+
+  // Find gaps only between neighboring cards within each group
+  Object.values(byDate).forEach(groupStickies => {
+    for (let i = 0; i < groupStickies.length; i++) {
+      const a = groupStickies[i]
+      const aHeight = getStickyHeight(a.content, a.measuredHeight)
+      const aBottom = a.y + aHeight
+
+      for (let j = i + 1; j < groupStickies.length; j++) {
+        const b = groupStickies[j]
+        const bHeight = getStickyHeight(b.content, b.measuredHeight)
+
+        // Check if horizontally overlapping (same column)
+        const horizOverlap = !(a.x + STICKY_WIDTH <= b.x || b.x + STICKY_WIDTH <= a.x)
+
+        if (horizOverlap) {
+          // Check if b is below a
+          if (b.y > aBottom) {
+            // Only show if no other card blocks this gap
+            if (!hasBlockingSticky(groupStickies, a, b, aBottom, 'vertical')) {
+              const gap = b.y - aBottom
+              gaps.push({
+                x: Math.max(a.x, b.x),
+                y: aBottom,
+                width: Math.min(a.x + STICKY_WIDTH, b.x + STICKY_WIDTH) - Math.max(a.x, b.x),
+                height: gap,
+                type: 'vertical',
+                actualGap: gap
+              })
+            }
+          }
+          // Check if a is below b
+          const bBottom = b.y + bHeight
+          if (a.y > bBottom) {
+            // Only show if no other card blocks this gap
+            if (!hasBlockingSticky(groupStickies, b, a, bBottom, 'vertical')) {
+              const gap = a.y - bBottom
+              gaps.push({
+                x: Math.max(a.x, b.x),
+                y: bBottom,
+                width: Math.min(a.x + STICKY_WIDTH, b.x + STICKY_WIDTH) - Math.max(a.x, b.x),
+                height: gap,
+                type: 'vertical',
+                actualGap: gap
+              })
+            }
+          }
+        }
+
+        // Check if vertically overlapping (same row)
+        const vertOverlap = !(a.y + aHeight <= b.y || b.y + bHeight <= a.y)
+
+        if (vertOverlap) {
+          // Check if b is to the right of a
+          if (b.x > a.x + STICKY_WIDTH) {
+            // Only show if no other card blocks this gap
+            if (!hasBlockingSticky(groupStickies, a, b, aBottom, 'horizontal')) {
+              const gap = b.x - (a.x + STICKY_WIDTH)
+              gaps.push({
+                x: a.x + STICKY_WIDTH,
+                y: Math.max(a.y, b.y),
+                width: gap,
+                height: Math.min(a.y + aHeight, b.y + bHeight) - Math.max(a.y, b.y),
+                type: 'horizontal',
+                actualGap: gap
+              })
+            }
+          }
+          // Check if a is to the right of b
+          if (a.x > b.x + STICKY_WIDTH) {
+            // Only show if no other card blocks this gap
+            const bBottomLocal = b.y + bHeight
+            if (!hasBlockingSticky(groupStickies, b, a, bBottomLocal, 'horizontal')) {
+              const gap = a.x - (b.x + STICKY_WIDTH)
+              gaps.push({
+                x: b.x + STICKY_WIDTH,
+                y: Math.max(a.y, b.y),
+                width: gap,
+                height: Math.min(a.y + aHeight, b.y + bHeight) - Math.max(a.y, b.y),
+                type: 'horizontal',
+                actualGap: gap
+              })
+            }
+          }
+        }
+      }
+    }
+  })
+
+  return (
+    <>
+      {gaps.map((gap, i) => (
+        <div key={i}>
+          {/* Gap rectangle */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              left: gap.x,
+              top: gap.y,
+              width: gap.width,
+              height: gap.height,
+              background: gap.actualGap === STICKY_GAP ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)',
+              border: `1px solid ${gap.actualGap === STICKY_GAP ? 'lime' : 'red'}`,
+              zIndex: 9000,
+            }}
+          />
+          {/* Gap size label */}
+          <div
+            className="absolute pointer-events-none text-xs font-mono"
+            style={{
+              left: gap.x + gap.width / 2 - 10,
+              top: gap.y + gap.height / 2 - 8,
+              color: gap.actualGap === STICKY_GAP ? 'lime' : 'red',
+              background: 'rgba(0,0,0,0.8)',
+              padding: '2px 4px',
+              borderRadius: 4,
+              zIndex: 9001,
+            }}
+          >
+            {gap.actualGap}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
 
 interface CanvasProps {
   children?: ReactNode
@@ -387,6 +582,9 @@ export function Canvas({ children }: CanvasProps) {
             isDragging={isDragging}
           />
         )}
+
+        {/* Debug: Gap visualization */}
+        <GapDebugOverlay stickies={regularStickies} getStickyHeight={getStickyHeight} />
 
         {/* Regular stickies */}
         {regularStickies.map(sticky => (
