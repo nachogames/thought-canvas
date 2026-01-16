@@ -5,11 +5,11 @@ interface CheckboxProps {
   className?: string
 }
 
-export function Checkbox({ checked, onChange, size = 'md', className = '' }: CheckboxProps) {
+export function Checkbox({ checked, onChange, size: _size = 'md', className = '' }: CheckboxProps) {
   // Both sizes are now 18px for consistency
   const dimensions = 18
   const checkmarkStyle = { left: 6, top: 2.5, width: 4, height: 9 }
-  // size prop kept for future use but currently both render the same
+  // _size prop kept for future use but currently both render the same
 
   return (
     <button
