@@ -115,18 +115,18 @@ function FilterButton({
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`
-          flex items-center gap-1.5 px-2.5 py-1.5
-          text-xs font-medium rounded-lg
-          border transition-all duration-150
+          flex items-center gap-1 px-1.5 py-1
+          text-[11px] font-medium rounded-md
+          transition-all duration-150
           ${active
-            ? 'bg-accent/10 text-accent border-accent/20'
-            : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-800 dark:hover:text-white'
+            ? 'text-accent bg-accent/10'
+            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-white/5'
           }
         `}
       >
-        <Icon size={13} />
+        <Icon size={12} />
         <span>{selectedLabel}</span>
-        <ChevronDown size={11} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={10} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {isOpen && (
@@ -357,29 +357,21 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
 
   return (
     <div className="h-full flex flex-col bg-gray-50/50 dark:bg-gray-900/50 backdrop-blur-sm shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] dark:shadow-none dark:border-l dark:border-white/10">
-      {/* Header */}
-      <div className="p-4 border-b border-gray-200 dark:border-white/5">
-        {/* Title row */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Tasks</h2>
-            <span className="px-2 py-0.5 text-[11px] font-medium text-gray-500 dark:text-gray-400 bg-gray-200 dark:bg-white/5 rounded-full font-mono">
+      {/* Header - compact single row */}
+      <div className="px-3 py-2 border-b border-gray-200 dark:border-white/5">
+        <div className="flex items-center gap-2">
+          {/* Title + count */}
+          <div className="flex items-center gap-1.5 mr-1">
+            <h2 className="text-xs font-semibold text-gray-900 dark:text-white">Tasks</h2>
+            <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500 font-mono">
               {completedCount}/{totalCount}
             </span>
           </div>
-          {hasActiveFilters && (
-            <button
-              onClick={() => setFilters({ tag: null, hideCompleted: false, dateFilter: 'all' })}
-              className="flex items-center gap-1 px-2 py-1 text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white rounded-md hover:bg-gray-200 dark:hover:bg-white/5 transition-colors"
-            >
-              <X size={11} />
-              Clear
-            </button>
-          )}
-        </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-2">
+          {/* Divider */}
+          <div className="w-px h-4 bg-gray-200 dark:bg-white/10" />
+
+          {/* Filters - inline */}
           <FilterButton
             icon={Calendar}
             label="Date"
@@ -402,46 +394,52 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
 
           <button
             onClick={() => setFilters(f => ({ ...f, hideCompleted: !f.hideCompleted }))}
+            title={filters.hideCompleted ? 'Show completed' : 'Hide completed'}
             className={`
-              flex items-center gap-1.5 px-2.5 py-1.5
-              text-xs font-medium rounded-lg
-              border transition-all duration-150
+              p-1.5 rounded-md transition-all duration-150
               ${filters.hideCompleted
-                ? 'bg-accent/10 text-accent border-accent/20'
-                : 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-200 dark:hover:bg-white/10 hover:text-gray-800 dark:hover:text-white'
+                ? 'text-accent bg-accent/10'
+                : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5'
               }
             `}
           >
-            {filters.hideCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
-            <span>{filters.hideCompleted ? 'Hidden' : 'Show all'}</span>
+            {filters.hideCompleted ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
 
-          <label
-            title="Auto-scroll to focused task in editor"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 cursor-pointer"
+          {/* Spacer */}
+          <div className="flex-1" />
+
+          {/* Sync toggle - minimal */}
+          <button
+            role="switch"
+            aria-checked={scrollOnFocus}
+            title="Auto-scroll to focused task"
+            onClick={() => setScrollOnFocus(!scrollOnFocus)}
+            className={`
+              relative w-7 h-4 rounded-full transition-colors duration-200
+              ${!scrollOnFocus ? 'bg-gray-300 dark:bg-gray-600' : ''}
+            `}
+            style={scrollOnFocus ? { backgroundColor: 'var(--color-accent)' } : undefined}
           >
-            <span className={`text-xs font-medium transition-colors ${scrollOnFocus ? 'text-accent' : 'text-gray-500 dark:text-gray-400'}`}>
-              Sync
-            </span>
-            <button
-              role="switch"
-              aria-checked={scrollOnFocus}
-              onClick={() => setScrollOnFocus(!scrollOnFocus)}
+            <span
               className={`
-                relative w-8 h-4 rounded-full transition-colors duration-200
-                ${!scrollOnFocus ? 'bg-gray-300 dark:bg-gray-600' : ''}
+                absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm
+                transition-transform duration-200
+                ${scrollOnFocus ? 'translate-x-3' : 'translate-x-0'}
               `}
-              style={scrollOnFocus ? { backgroundColor: 'var(--color-accent)' } : undefined}
+            />
+          </button>
+
+          {/* Clear filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={() => setFilters({ tag: null, hideCompleted: false, dateFilter: 'all' })}
+              className="p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 rounded transition-colors"
+              title="Clear filters"
             >
-              <span
-                className={`
-                  absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm
-                  transition-transform duration-200
-                  ${scrollOnFocus ? 'translate-x-4' : 'translate-x-0'}
-                `}
-              />
+              <X size={14} />
             </button>
-          </label>
+          )}
         </div>
       </div>
 

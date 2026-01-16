@@ -1,4 +1,5 @@
 import { forwardRef } from 'react'
+import { Checkbox } from '@/components/atoms'
 import type { TodoWithContext } from '@/types'
 
 // Tag chip component - compact with subtle background
@@ -91,7 +92,6 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
           hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)]
           dark:hover:border-white/10
           transition-all duration-150
-          ${checked ? 'opacity-50' : ''}
           ${isFocused ? 'ring-1 ring-accent/30 bg-accent/5' : 'border-transparent'}
         `}
       >
@@ -114,24 +114,20 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
         )}
 
         {/* Task content: checkbox + text */}
-        <div className={`flex items-baseline gap-2 px-3 ${(parentText || priority > 0) ? 'pt-2' : 'pt-3'} ${allTags.size > 0 ? 'pb-2' : 'pb-3'}`}>
-          <input
-            type="checkbox"
+        <div className={`flex items-start gap-2 px-3 ${(parentText || priority > 0) ? 'pt-2' : 'pt-3'} ${allTags.size > 0 ? 'pb-2' : 'pb-3'}`}>
+          <Checkbox
             checked={checked}
             onChange={onToggle}
-            className="
-              flex-shrink-0 w-4 h-4 translate-y-[3px]
-              accent-[var(--color-accent)] cursor-pointer
-              rounded
-            "
+            className="mt-[3px]"
           />
           <div className="flex-1 min-w-0">
             <div
               className={`
                 text-sm leading-relaxed
                 ${onFocus ? 'cursor-pointer hover:text-accent' : ''}
-                ${checked ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-800 dark:text-gray-100'}
+                text-gray-800 dark:text-gray-100
                 transition-colors
+                ${checked ? 'line-through text-gray-400 dark:text-gray-500' : ''}
               `}
               onClick={onFocus}
             >
@@ -165,29 +161,25 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
       ref={ref}
       className={`
         py-0.5 px-1.5 -mx-1.5 rounded-md transition-all duration-150
-        ${checked ? 'opacity-50' : ''}
         ${isFocused ? 'bg-accent/5 ring-1 ring-accent/20' : ''}
       `}
     >
       {/* Checkbox + content row */}
-      <div className="flex items-baseline gap-2">
-        <input
-          type="checkbox"
+      <div className="flex items-start gap-2">
+        <Checkbox
           checked={checked}
           onChange={onToggle}
-          className="
-            flex-shrink-0 w-3.5 h-3.5 translate-y-[2px]
-            accent-[var(--color-accent)] cursor-pointer
-            rounded
-          "
+          size="sm"
+          className="mt-[5px]"
         />
         <div className="flex-1 min-w-0">
           <span
             className={`
               text-xs leading-relaxed
               ${onFocus ? 'cursor-pointer hover:text-accent' : ''}
-              ${checked ? 'text-gray-400 dark:text-gray-500 line-through' : 'text-gray-600 dark:text-gray-300'}
+              text-gray-600 dark:text-gray-300
               transition-colors
+              ${checked ? 'line-through text-gray-400 dark:text-gray-500' : ''}
             `}
             onClick={onFocus}
           >
