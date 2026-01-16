@@ -19,6 +19,9 @@ export interface Sticky {
   taskChecked?: boolean // Checkbox state for task stickies
   taskPriority?: number // Priority level (1-3) for task stickies
   taskTags?: string[] // Tags for task stickies
+  taskCompletedAt?: string // ISO timestamp when task was completed
+  taskParentText?: string // Parent task text (for promoted subtasks)
+  taskDepth?: number // Nesting depth (0 = top-level)
 }
 
 export interface StickyRect {

@@ -4,6 +4,7 @@ import { STICKY_WIDTH, TASK_STICKY_WIDTH, MIN_STICKY_HEIGHT, MIN_TASK_STICKY_HEI
 import { TiptapEditor } from '@/components/molecules/TiptapEditor'
 import { parseContent } from '@/utils/parseContent'
 import { useLongPress } from '@/hooks'
+import { useStickies } from '@/context/StickiesContext'
 import type { Sticky as StickyType, StickyColor } from '@/types'
 
 interface StickyProps {
@@ -47,6 +48,17 @@ const StickyComponent = function Sticky({
   const [clickCoords, setClickCoords] = useState<{ x: number; y: number } | null>(null)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [isLongPressing, setIsLongPressing] = useState(false)
+
+  // Scroll on focus: update context when cursor moves to a task item
+  const { scrollOnFocus, setFocusedTodoKey } = useStickies()
+  const handleCursorMove = useCallback((lineIndex: number | null) => {
+    if (!scrollOnFocus) return
+    if (lineIndex !== null) {
+      setFocusedTodoKey(`${sticky.id}-${lineIndex}`)
+    } else {
+      setFocusedTodoKey(null)
+    }
+  }, [sticky.id, scrollOnFocus, setFocusedTodoKey])
 
   const isTaskMode = variant === 'task'
   const width = isTaskMode ? TASK_STICKY_WIDTH : STICKY_WIDTH
@@ -358,6 +370,19 @@ const StickyComponent = function Sticky({
         )}
       </div>
 
+      {/* Parent context for promoted subtasks */}
+      {sticky.taskParentText && (
+        <div
+          className="px-3 -mt-0.5 mb-1"
+          onClick={handleFocusSource}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <span className="text-[10px] text-gray-400 dark:text-gray-500 hover:text-accent cursor-pointer truncate block">
+            ↳ {sticky.taskParentText}
+          </span>
+        </div>
+      )}
+
       {/* Content */}
       <div
         className={`${isTaskMode ? 'px-3 pb-3' : 'px-4 pb-4'} cursor-text overflow-hidden`}
@@ -372,6 +397,7 @@ const StickyComponent = function Sticky({
               onChange={handleContentChange}
               onBlur={handleBlur}
               onDeleteEmpty={() => onDelete(sticky.id)}
+              onCursorMove={handleCursorMove}
               placeholder={isTaskMode ? "Task..." : "Type here..."}
               editable={true}
               focusCoords={clickCoords}

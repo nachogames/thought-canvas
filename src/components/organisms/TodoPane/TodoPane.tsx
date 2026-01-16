@@ -1,9 +1,16 @@
-import { useMemo, useState, useRef, useEffect } from 'react'
+import { useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, X, Calendar, Hash, Eye, EyeOff } from 'lucide-react'
 import { parseContent } from '@/utils'
 import { TodoItem } from './TodoItem'
 import { EmptyState } from './EmptyState'
+import { useStickies } from '@/context/StickiesContext'
 import type { Sticky, TodoFilters, TodoWithContext, DateFilterValue } from '@/types'
+
+// Tree node structure for recursive task rendering
+interface TaskTreeNode {
+  todo: TodoWithContext
+  children: TaskTreeNode[]
+}
 
 function parseLocalDate(dateString: string): Date {
   const [year, month, day] = dateString.split('-').map(Number)
@@ -12,6 +19,9 @@ function parseLocalDate(dateString: string): Date {
 
 function matchesDateFilter(todoDate: string, filter: DateFilterValue): boolean {
   if (filter === 'all') return true
+  // Completion-based filters are handled separately
+  if (filter === 'completed-today' || filter === 'completed-yesterday' || filter === 'completed-week') return true
+
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const date = parseLocalDate(todoDate)
@@ -32,6 +42,39 @@ function matchesDateFilter(todoDate: string, filter: DateFilterValue): boolean {
     const end = parseLocalDate(filter.end)
     end.setHours(23, 59, 59, 999)
     return date >= start && date <= end
+  }
+  return true
+}
+
+function matchesCompletionFilter(completedAt: string | undefined, filter: DateFilterValue): boolean {
+  if (filter === 'completed-today') {
+    if (!completedAt) return false
+    const completedDate = new Date(completedAt)
+    const today = new Date()
+    return (
+      completedDate.getFullYear() === today.getFullYear() &&
+      completedDate.getMonth() === today.getMonth() &&
+      completedDate.getDate() === today.getDate()
+    )
+  }
+  if (filter === 'completed-yesterday') {
+    if (!completedAt) return false
+    const completedDate = new Date(completedAt)
+    const yesterday = new Date()
+    yesterday.setDate(yesterday.getDate() - 1)
+    return (
+      completedDate.getFullYear() === yesterday.getFullYear() &&
+      completedDate.getMonth() === yesterday.getMonth() &&
+      completedDate.getDate() === yesterday.getDate()
+    )
+  }
+  if (filter === 'completed-week') {
+    if (!completedAt) return false
+    const completedDate = new Date(completedAt)
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    weekAgo.setHours(0, 0, 0, 0)
+    return completedDate >= weekAgo
   }
   return true
 }
@@ -125,6 +168,29 @@ interface TodoPaneProps {
 }
 
 export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilters }: TodoPaneProps) {
+  // Scroll on Focus: get context state and refs for todo items
+  const { scrollOnFocus, setScrollOnFocus, focusedTodoKey } = useStickies()
+  const todoRefsMap = useRef<Map<string, HTMLDivElement>>(new Map())
+
+  // Callback to register todo refs
+  const setTodoRef = useCallback((key: string, el: HTMLDivElement | null) => {
+    if (el) {
+      todoRefsMap.current.set(key, el)
+    } else {
+      todoRefsMap.current.delete(key)
+    }
+  }, [])
+
+  // Scroll focused todo into view
+  useEffect(() => {
+    if (!scrollOnFocus || !focusedTodoKey) return
+
+    const element = todoRefsMap.current.get(focusedTodoKey)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [focusedTodoKey, scrollOnFocus])
+
   const allTodos = useMemo(() => {
     const todos: TodoWithContext[] = []
     stickies.forEach(s => {
@@ -146,18 +212,105 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
     return Array.from(new Set(allTodos.flatMap(t => [...t.allTags]))).sort()
   }, [allTodos])
 
-  const filteredTodos = useMemo(() => {
-    let result = allTodos.filter(t => t.cleanText.length > 0)
+  // Build recursive tree structure for tasks
+  const taskTrees = useMemo((): TaskTreeNode[] => {
+    // Index todos by their lineIndex for efficient lookup
+    const todosByLineIndex = new Map<string, TodoWithContext>()
+    allTodos.forEach(t => {
+      const key = `${t.stickyId}-${t.lineIndex}`
+      todosByLineIndex.set(key, t)
+    })
+
+    // Build tree recursively
+    function buildSubtree(parentTodo: TodoWithContext): TaskTreeNode {
+      // Find all direct children of this todo
+      const children = allTodos.filter(t =>
+        t.cleanText.length > 0 &&
+        t.stickyId === parentTodo.stickyId &&
+        t.parentLineIndex === parentTodo.lineIndex
+      )
+
+      return {
+        todo: parentTodo,
+        children: children.map(child => buildSubtree(child))
+      }
+    }
+
+    // Get top-level todos (depth 0 or undefined)
+    const topLevelTodos = allTodos.filter(t =>
+      t.cleanText.length > 0 && (t.depth === undefined || t.depth === 0)
+    )
+
+    return topLevelTodos.map(todo => buildSubtree(todo))
+  }, [allTodos])
+
+  // Filter tree nodes based on current filters
+  const filteredTrees = useMemo(() => {
+    const isCompletionFilter = filters.dateFilter === 'completed-today' || filters.dateFilter === 'completed-yesterday' || filters.dateFilter === 'completed-week'
+
+    // Check if a todo passes the filters
+    function passesFilters(todo: TodoWithContext): boolean {
+      if (filters.dateFilter !== 'all') {
+        if (!matchesDateFilter(todo.date, filters.dateFilter)) return false
+        if (!matchesCompletionFilter(todo.completedAt, filters.dateFilter)) return false
+      }
+      if (filters.tag && !todo.allTags.has(filters.tag)) return false
+      if (filters.hideCompleted && !isCompletionFilter && todo.checked) return false
+      return true
+    }
+
+    // Recursively filter a tree node, keeping nodes that pass or have children that pass
+    function filterTree(node: TaskTreeNode): TaskTreeNode | null {
+      const filteredChildren = node.children
+        .map(child => filterTree(child))
+        .filter((child): child is TaskTreeNode => child !== null)
+
+      const nodePassesFilters = passesFilters(node.todo)
+
+      // Keep this node if it passes filters OR has visible children
+      if (nodePassesFilters || filteredChildren.length > 0) {
+        return {
+          todo: node.todo,
+          children: filteredChildren
+        }
+      }
+
+      return null
+    }
+
+    return taskTrees
+      .map(tree => filterTree(tree))
+      .filter((tree): tree is TaskTreeNode => tree !== null)
+      // Sort by priority then date
+      .sort((a, b) =>
+        b.todo.priority - a.todo.priority ||
+        new Date(b.todo.date).getTime() - new Date(a.todo.date).getTime()
+      )
+  }, [taskTrees, filters])
+
+  // Get promoted subtasks that should also appear as standalone items
+  const promotedTodos = useMemo(() => {
+    const isCompletionFilter = filters.dateFilter === 'completed-today' || filters.dateFilter === 'completed-yesterday' || filters.dateFilter === 'completed-week'
+
+    let promoted = allTodos.filter(t =>
+      t.cleanText.length > 0 && t.isPromoted === true
+    )
+
+    // Apply filters
     if (filters.dateFilter !== 'all') {
-      result = result.filter(t => matchesDateFilter(t.date, filters.dateFilter))
+      promoted = promoted.filter(t =>
+        matchesDateFilter(t.date, filters.dateFilter) &&
+        matchesCompletionFilter(t.completedAt, filters.dateFilter)
+      )
     }
     if (filters.tag) {
-      result = result.filter(t => t.allTags.has(filters.tag!))
+      promoted = promoted.filter(t => t.allTags.has(filters.tag!))
     }
-    if (filters.hideCompleted) {
-      result = result.filter(t => !t.checked)
+    if (filters.hideCompleted && !isCompletionFilter) {
+      promoted = promoted.filter(t => !t.checked)
     }
-    return result.sort((a, b) =>
+
+    return promoted.sort((a, b) =>
       b.priority - a.priority || new Date(b.date).getTime() - new Date(a.date).getTime()
     )
   }, [allTodos, filters])
@@ -171,12 +324,36 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
     { value: 'today', label: 'Today' },
     { value: 'yesterday', label: 'Yesterday' },
     { value: 'week', label: 'This week' },
+    { value: 'completed-today', label: 'Done today' },
+    { value: 'completed-yesterday', label: 'Done yesterday' },
+    { value: 'completed-week', label: 'Done this week' },
   ]
 
   const tagOptions = [
     { value: '', label: 'All tags' },
     ...allTags.map(tag => ({ value: tag, label: `#${tag}` }))
   ]
+
+  // Recursive function to render a tree node and its children
+  const renderTreeNode = (node: TaskTreeNode, depth: number): React.ReactNode => {
+    const key = `${node.todo.stickyId}-${node.todo.lineIndex}`
+
+    return (
+      <TodoItem
+        key={key}
+        ref={(el) => setTodoRef(key, el)}
+        todo={node.todo}
+        depth={depth}
+        onToggle={() => onToggle(node.todo.stickyId, node.todo.lineIndex)}
+        onFocus={() => onFocusSticky(node.todo.stickyId)}
+        isFocused={focusedTodoKey === key}
+      >
+        {node.children.length > 0 && node.children.map(child =>
+          renderTreeNode(child, depth + 1)
+        )}
+      </TodoItem>
+    )
+  }
 
   return (
     <div className="h-full flex flex-col bg-gray-50/50 dark:bg-gray-900/50 backdrop-blur-sm shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] dark:shadow-none dark:border-l dark:border-white/10">
@@ -238,23 +415,59 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
             {filters.hideCompleted ? <EyeOff size={13} /> : <Eye size={13} />}
             <span>{filters.hideCompleted ? 'Hidden' : 'Show all'}</span>
           </button>
+
+          <label
+            title="Auto-scroll to focused task in editor"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 cursor-pointer"
+          >
+            <span className={`text-xs font-medium transition-colors ${scrollOnFocus ? 'text-accent' : 'text-gray-500 dark:text-gray-400'}`}>
+              Sync
+            </span>
+            <button
+              role="switch"
+              aria-checked={scrollOnFocus}
+              onClick={() => setScrollOnFocus(!scrollOnFocus)}
+              className={`
+                relative w-8 h-4 rounded-full transition-colors duration-200
+                ${!scrollOnFocus ? 'bg-gray-300 dark:bg-gray-600' : ''}
+              `}
+              style={scrollOnFocus ? { backgroundColor: 'var(--color-accent)' } : undefined}
+            >
+              <span
+                className={`
+                  absolute top-0.5 left-0.5 w-3 h-3 rounded-full bg-white shadow-sm
+                  transition-transform duration-200
+                  ${scrollOnFocus ? 'translate-x-4' : 'translate-x-0'}
+                `}
+              />
+            </button>
+          </label>
         </div>
       </div>
 
       {/* Task list */}
       <div className="flex-1 overflow-auto p-3">
-        {filteredTodos.length === 0 ? (
+        {filteredTrees.length === 0 && promotedTodos.length === 0 ? (
           <EmptyState />
         ) : (
           <div className="space-y-2">
-            {filteredTodos.map(todo => (
-              <TodoItem
-                key={`${todo.stickyId}-${todo.lineIndex}`}
-                todo={todo}
-                onToggle={() => onToggle(todo.stickyId, todo.lineIndex)}
-                onFocus={() => onFocusSticky(todo.stickyId)}
-              />
-            ))}
+            {/* Promoted subtasks shown as standalone cards at the top */}
+            {promotedTodos.map(todo => {
+              const key = `${todo.stickyId}-${todo.lineIndex}`
+              return (
+                <TodoItem
+                  key={`promoted-${key}`}
+                  ref={(el) => setTodoRef(key, el)}
+                  todo={todo}
+                  onToggle={() => onToggle(todo.stickyId, todo.lineIndex)}
+                  onFocus={() => onFocusSticky(todo.stickyId)}
+                  isFocused={focusedTodoKey === key}
+                />
+              )
+            })}
+
+            {/* Recursive tree rendering */}
+            {filteredTrees.map(tree => renderTreeNode(tree, 0))}
           </div>
         )}
       </div>

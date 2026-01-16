@@ -8,12 +8,19 @@ import type { ParsedContent, ParsedTodo } from '@/types'
 const PRIORITY_REGEX = /(?:^|\s)(!{1,4})(?:\s|$)/
 
 /**
- * Remove tags and priority markers from text for display
+ * Promotion marker regex: -> at end of text (with optional trailing whitespace)
+ * Only valid for subtasks (depth > 0)
+ */
+const PROMOTION_MARKER_REGEX = /->\s*$/
+
+/**
+ * Remove tags, priority markers, and promotion marker from text for display
  */
 export function cleanText(text: string): string {
   return text
     .replace(/#\w+/g, '')                    // Remove #tags
     .replace(/(?:^|\s)!{1,4}(?:\s|$)/g, ' ') // Remove priority markers
+    .replace(PROMOTION_MARKER_REGEX, '')     // Remove -> promotion marker
     .replace(/\s+/g, ' ')                    // Normalize whitespace
     .trim()
 }
@@ -106,6 +113,63 @@ function getDirectTextContent(element: Element): string {
 }
 
 /**
+ * Get HTML content from a task item for rich rendering in TodoPane.
+ * Extracts only the text content with basic formatting (bold, italic, links, line breaks).
+ * Excludes: nested task lists, checkboxes, labels, task item structure.
+ */
+function getTaskItemHtmlContent(element: Element): string {
+  const parts: string[] = []
+
+  function processNode(node: Node): void {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.textContent || '')
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element
+      const tagName = el.tagName.toLowerCase()
+
+      // Skip elements we don't want
+      if (el.getAttribute('data-type') === 'taskList') return // Nested task lists
+      if (el.getAttribute('data-type') === 'taskItem') return // Nested task items
+      if (tagName === 'label') return // Checkbox labels
+      if (tagName === 'input') return // Checkboxes
+
+      // Preserve formatting elements with their HTML
+      if (['strong', 'b', 'em', 'i', 'a', 'code', 'mark', 's', 'u'].includes(tagName)) {
+        parts.push(el.outerHTML)
+        return
+      }
+
+      // For block elements, add line breaks
+      if (['p', 'div', 'br'].includes(tagName)) {
+        if (parts.length > 0 && tagName !== 'br') {
+          // Add line break before new block (except for first element)
+          const lastPart = parts[parts.length - 1]
+          if (lastPart && !lastPart.endsWith('<br>') && !lastPart.endsWith('\n')) {
+            parts.push('<br>')
+          }
+        }
+        // Process children
+        el.childNodes.forEach(child => processNode(child))
+        return
+      }
+
+      // For other elements, just process children
+      el.childNodes.forEach(child => processNode(child))
+    }
+  }
+
+  element.childNodes.forEach(child => processNode(child))
+
+  // Clean up: remove leading/trailing breaks, collapse multiple breaks
+  let result = parts.join('')
+    .replace(/^(<br>|\s)+/, '') // Remove leading breaks/whitespace
+    .replace(/(<br>|\s)+$/, '') // Remove trailing breaks/whitespace
+    .replace(/(<br>){3,}/g, '<br><br>') // Collapse 3+ breaks to 2
+
+  return result.trim()
+}
+
+/**
  * Get text content from DOM with proper spacing between block elements
  */
 function getTextWithSpacing(element: Element): string {
@@ -133,7 +197,8 @@ function getTextWithSpacing(element: Element): string {
 }
 
 /**
- * Parse Tiptap HTML content to extract todos, tags, and priority
+ * Parse Tiptap HTML content to extract todos, tags, and priority.
+ * Handles nested task lists and promotion markers (->).
  */
 function parseHtmlContent(html: string): ParsedContent {
   const todos: ParsedTodo[] = []
@@ -158,37 +223,94 @@ function parseHtmlContent(html: string): ParsedContent {
     priority = priorityMatch[1].length
   }
 
-  // Find all task items
-  const taskItems = doc.querySelectorAll('li[data-type="taskItem"]')
+  // Parse task items recursively to track depth and parent relationships
+  let globalIndex = 0
 
-  taskItems.forEach((item, idx) => {
-    const checked = item.getAttribute('data-checked') === 'true'
-    // Get only direct text content, excluding nested task lists
-    const text = getDirectTextContent(item)
+  function parseTaskList(
+    taskList: Element,
+    depth: number,
+    parentIndex: number | null,
+    parentText: string | null,
+    parentTags: Set<string> = new Set(),
+    parentPriority: number = 0
+  ) {
+    const items = taskList.querySelectorAll(':scope > li[data-type="taskItem"]')
 
-    // Extract tags from this todo
-    const todoTags = new Set<string>()
-    const todoTagMatches = text.match(/#(\w+)/g)
-    if (todoTagMatches) {
-      todoTagMatches.forEach(t => {
-        const tag = t.slice(1)
-        todoTags.add(tag)
-        allTaskTags.add(tag) // Track all tags that appear on task lines
+    items.forEach((item) => {
+      const checked = item.getAttribute('data-checked') === 'true'
+      const completedAt = item.getAttribute('data-completed-at') || undefined
+      const text = getDirectTextContent(item)
+      const htmlContent = getTaskItemHtmlContent(item)
+      const currentIndex = globalIndex++
+
+      // Extract tags from this todo
+      const todoTags = new Set<string>()
+      const todoTagMatches = text.match(/#(\w+)/g)
+      if (todoTagMatches) {
+        todoTagMatches.forEach(t => {
+          const tag = t.slice(1)
+          todoTags.add(tag)
+          allTaskTags.add(tag)
+        })
+      }
+
+      // Extract priority from this todo's text
+      const todoPriorityMatch = text.match(PRIORITY_REGEX)
+      // Priority inheritance: own priority > parent priority > card-level priority
+      const ownPriority = todoPriorityMatch ? todoPriorityMatch[1].length : 0
+      const todoPriority = ownPriority || parentPriority || priority
+
+      // Inherit parent tags for subtasks
+      const effectiveTags = depth > 0 ? new Set([...todoTags, ...parentTags]) : todoTags
+
+      // Check for promotion marker (-> at end) - only valid for nested tasks
+      const hasPromotionMarker = PROMOTION_MARKER_REGEX.test(text)
+      const isPromoted = depth > 0 && hasPromotionMarker
+
+      const todo: ParsedTodo = {
+        lineIndex: currentIndex,
+        checked,
+        text,
+        cleanText: cleanText(text),
+        htmlContent,
+        tags: effectiveTags,
+        priority: todoPriority,
+        completedAt,
+        depth,
+        // Always set parentLineIndex for subtasks so they can be grouped
+        ...(depth > 0 && parentIndex !== null && {
+          parentLineIndex: parentIndex,
+        }),
+        // Only set promotion-specific fields when promoted
+        ...(isPromoted && {
+          isPromoted: true,
+          parentText: parentText || undefined,
+        }),
+      }
+
+      todos.push(todo)
+
+      // Parse nested task lists (they can be nested inside div elements within the li)
+      const nestedTaskLists = item.querySelectorAll('ul[data-type="taskList"]')
+      nestedTaskLists.forEach(nestedList => {
+        // Make sure this nested list is directly inside this item (not in a deeper nested item)
+        const parentItem = nestedList.closest('li[data-type="taskItem"]')
+        if (parentItem === item) {
+          // Pass down this task's tags and priority to children
+          parseTaskList(nestedList, depth + 1, currentIndex, cleanText(text), effectiveTags, todoPriority)
+        }
       })
-    }
-
-    // Extract priority from this todo (falls back to card-level priority)
-    const todoPriorityMatch = text.match(PRIORITY_REGEX)
-    const todoPriority = todoPriorityMatch ? todoPriorityMatch[1].length : priority
-
-    todos.push({
-      lineIndex: idx,
-      checked,
-      text,
-      cleanText: cleanText(text),
-      tags: todoTags,
-      priority: todoPriority
     })
+  }
+
+  // Find top-level task lists and parse them
+  const topLevelTaskLists = doc.querySelectorAll('ul[data-type="taskList"]')
+  topLevelTaskLists.forEach(taskList => {
+    // Only process if this is truly a top-level list (not nested inside another taskItem)
+    const isNested = taskList.closest('li[data-type="taskItem"]')
+    if (!isNested) {
+      parseTaskList(taskList, 0, null, null)
+    }
   })
 
   // Note-level tags are tags that appear outside of task items

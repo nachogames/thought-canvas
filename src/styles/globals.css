@@ -214,9 +214,14 @@ body {
   cursor: pointer;
 }
 
-.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > p {
   text-decoration: line-through;
   color: var(--color-muted);
+}
+
+/* Don't strikethrough nested task lists when parent is checked */
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > ul[data-type="taskList"] {
+  text-decoration: none;
 }
 
 /* Ensure empty task items show caret */
@@ -321,9 +326,14 @@ body {
   cursor: pointer;
 }
 
-.sticky-content ul[data-type="taskList"] li[data-checked="true"] > div {
+.sticky-content ul[data-type="taskList"] li[data-checked="true"] > div > p {
   text-decoration: line-through;
   color: var(--color-muted);
+}
+
+/* Don't strikethrough nested task lists when parent is checked */
+.sticky-content ul[data-type="taskList"] li[data-checked="true"] > div > ul[data-type="taskList"] {
+  text-decoration: none;
 }
 
 .sticky-content ul[data-type="taskList"] li > div {
@@ -350,6 +360,92 @@ body {
 
 .sticky-content h2 {
   font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Todo HTML content (in TodoPane) - mirrors sticky-content styles but adapted for task panel */
+.todo-html-content {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+
+.todo-html-content p {
+  margin: 0;
+}
+
+.todo-html-content p:empty::before {
+  content: '\200B';
+}
+
+/* Links */
+.todo-html-content a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  cursor: pointer;
+  word-break: break-all;
+}
+
+.todo-html-content a:hover {
+  color: var(--color-accent-light);
+}
+
+/* Nested task lists in todo panel - render as simple text since we handle checkboxes separately */
+.todo-html-content ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
+  margin: 4px 0 0 0;
+}
+
+.todo-html-content ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 2px 0;
+  font-size: inherit;
+}
+
+.todo-html-content ul[data-type="taskList"] li > label {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.todo-html-content ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.todo-html-content ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+.todo-html-content ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+
+/* Bullet lists */
+.todo-html-content ul:not([data-type="taskList"]) {
+  list-style-type: disc;
+  padding-left: 16px;
+  margin: 4px 0 0 0;
+}
+
+.todo-html-content ul:not([data-type="taskList"]) li {
+  margin: 2px 0;
+}
+
+/* Headings - scaled down for panel */
+.todo-html-content h1 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.todo-html-content h2 {
+  font-size: 1rem;
   font-weight: 600;
   margin: 0;
 }

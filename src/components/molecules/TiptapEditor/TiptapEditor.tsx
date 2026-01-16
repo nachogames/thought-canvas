@@ -7,12 +7,43 @@ import Link from '@tiptap/extension-link'
 import { SlashCommands } from './SlashCommands'
 import { TwoStepBackspace } from './TwoStepBackspace'
 import { useEffect } from 'react'
+import type { Editor } from '@tiptap/react'
+
+/**
+ * Count task items before a given position to get the lineIndex
+ * This matches the indexing used in parseContent.ts
+ */
+function getTaskItemIndexAtPosition(editor: Editor): number | null {
+  const { $from } = editor.state.selection
+
+  // Walk up to find the task item containing the cursor
+  for (let depth = $from.depth; depth > 0; depth--) {
+    const node = $from.node(depth)
+    if (node.type.name === 'taskItem') {
+      // Found the task item - now count how many task items come before it
+      let count = 0
+      const targetPos = $from.before(depth)
+
+      // Walk through the document and count task items
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'taskItem' && pos < targetPos) {
+          count++
+        }
+      })
+
+      return count
+    }
+  }
+
+  return null // Not in a task item
+}
 
 interface TiptapEditorProps {
   content: string
   onChange: (html: string) => void
   onBlur?: () => void
   onDeleteEmpty?: () => void  // Called when backspace on empty content
+  onCursorMove?: (lineIndex: number | null) => void  // Called when cursor moves to/from a task item
   placeholder?: string
   editable?: boolean
   focusCoords?: { x: number; y: number } | null
@@ -23,6 +54,7 @@ export function TiptapEditor({
   onChange,
   onBlur,
   onDeleteEmpty,
+  onCursorMove,
   placeholder = "Type '/' for commands...",
   editable = true,
   focusCoords = null,
@@ -153,9 +185,11 @@ export function TiptapEditor({
     },
   })
 
-  // Sync content from outside
+  // Sync content from outside - only when editor is NOT focused
+  // When the editor has focus, content flows outward via onChange only
+  // This prevents cursor jumping when typing
   useEffect(() => {
-    if (editor && content !== editor.getHTML()) {
+    if (editor && !editor.isFocused) {
       editor.commands.setContent(content)
     }
   }, [content, editor])
@@ -172,8 +206,18 @@ export function TiptapEditor({
             // Try to position cursor at click location
             const pos = editor.view.posAtCoords({ left: focusCoords.x, top: focusCoords.y })
             if (pos && pos.pos > 0) {
-              editor.commands.focus()
-              editor.commands.setTextSelection(pos.pos)
+              // Validate that the position is in a text node before setting selection
+              const $pos = editor.state.doc.resolve(pos.pos)
+              const node = $pos.node()
+
+              // Check if we're in a node that supports text selection
+              if (node.isTextblock || node.type.name === 'text') {
+                editor.commands.focus()
+                editor.commands.setTextSelection(pos.pos)
+              } else {
+                // Find the nearest valid text position
+                editor.commands.focus('end')
+              }
             } else {
               editor.commands.focus('end')
             }
@@ -187,6 +231,24 @@ export function TiptapEditor({
       })
     }
   }, [editable, editor, focusCoords])
+
+  // Track cursor position for scroll-on-focus feature
+  useEffect(() => {
+    if (!editor || !onCursorMove) return
+
+    const handleSelectionUpdate = () => {
+      const lineIndex = getTaskItemIndexAtPosition(editor)
+      onCursorMove(lineIndex)
+    }
+
+    // Also fire on initial focus
+    handleSelectionUpdate()
+
+    editor.on('selectionUpdate', handleSelectionUpdate)
+    return () => {
+      editor.off('selectionUpdate', handleSelectionUpdate)
+    }
+  }, [editor, onCursorMove])
 
   return <EditorContent editor={editor} />
 }

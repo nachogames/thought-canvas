@@ -26,6 +26,87 @@ const DEFAULT_TASKS_GROUP: TasksGroupState = {
   expanded: true
 }
 
+/**
+ * Get the direct text content of a task item (excluding nested task lists)
+ */
+function getTaskItemText(element: Element): string {
+  const parts: string[] = []
+  element.childNodes.forEach(node => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      parts.push(node.textContent || '')
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as Element
+      // Skip nested task lists
+      if (el.getAttribute('data-type') === 'taskList') return
+      parts.push(getTaskItemText(el))
+    }
+  })
+  return parts.join('').trim()
+}
+
+/**
+ * Add/remove completion timestamps when checkbox state changes.
+ * Tiptap handles checkbox toggles internally, bypassing toggleTodo(),
+ * so we need to detect state changes and inject timestamps here.
+ *
+ * Strategy: Build a map of old items by text content to find matching items
+ * and preserve their timestamps. Only add new timestamps for newly checked items.
+ */
+function addCompletionTimestamps(oldContent: string, newContent: string): string {
+  // Only process Tiptap HTML content
+  if (!newContent.includes('data-type="taskItem"')) {
+    return newContent
+  }
+
+  const oldParser = new DOMParser()
+  const newParser = new DOMParser()
+  const oldDoc = oldParser.parseFromString(oldContent, 'text/html')
+  const newDoc = newParser.parseFromString(newContent, 'text/html')
+
+  const oldItems = oldDoc.querySelectorAll('li[data-type="taskItem"]')
+  const newItems = newDoc.querySelectorAll('li[data-type="taskItem"]')
+
+  // Build a map of old items by their text content
+  // Key: text content, Value: { wasChecked, completedAt }
+  const oldItemMap = new Map<string, { wasChecked: boolean; completedAt: string | null }>()
+  oldItems.forEach(item => {
+    const text = getTaskItemText(item)
+    const wasChecked = item.getAttribute('data-checked') === 'true'
+    const completedAt = item.getAttribute('data-completed-at')
+    oldItemMap.set(text, { wasChecked, completedAt })
+  })
+
+  let modified = false
+
+  newItems.forEach(newItem => {
+    const text = getTaskItemText(newItem)
+    const isChecked = newItem.getAttribute('data-checked') === 'true'
+    const oldItemData = oldItemMap.get(text)
+    const wasChecked = oldItemData?.wasChecked ?? false
+    const existingTimestamp = oldItemData?.completedAt
+
+    if (!wasChecked && isChecked) {
+      // Task was just completed - add timestamp
+      newItem.setAttribute('data-completed-at', new Date().toISOString())
+      modified = true
+    } else if (wasChecked && isChecked && existingTimestamp) {
+      // Task was already checked - preserve existing timestamp
+      if (newItem.getAttribute('data-completed-at') !== existingTimestamp) {
+        newItem.setAttribute('data-completed-at', existingTimestamp)
+        modified = true
+      }
+    } else if (wasChecked && !isChecked) {
+      // Task was unchecked - remove timestamp
+      if (newItem.hasAttribute('data-completed-at')) {
+        newItem.removeAttribute('data-completed-at')
+        modified = true
+      }
+    }
+  })
+
+  return modified ? newDoc.body.innerHTML : newContent
+}
+
 interface StickiesContextValue {
   // State
   stickies: Sticky[]
@@ -82,6 +163,12 @@ interface StickiesContextValue {
   // Tasks View
   setShowTasks: React.Dispatch<React.SetStateAction<boolean>>
   setTaskViewMode: React.Dispatch<React.SetStateAction<'panel' | 'overlay'>>
+
+  // Scroll on Focus (sync editor cursor with task panel)
+  scrollOnFocus: boolean
+  setScrollOnFocus: React.Dispatch<React.SetStateAction<boolean>>
+  focusedTodoKey: string | null  // Format: "stickyId-lineIndex"
+  setFocusedTodoKey: (key: string | null) => void
 
   // Tasks Group (for overlay mode)
   tasksGroup: TasksGroupState
@@ -186,6 +273,21 @@ const generateExampleStickies = (): Sticky[] => {
   const yesterday = getDateString(1)
   const twoDaysAgo = getDateString(2)
 
+  // Generate completion timestamps for "done yesterday" examples
+  const yesterdayTimestamp = (() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    d.setHours(14, 30, 0, 0) // 2:30 PM yesterday
+    return d.toISOString()
+  })()
+
+  // Generate completion timestamp for "done today" examples
+  const todayTimestamp = (() => {
+    const d = new Date()
+    d.setHours(9, 0, 0, 0) // 9:00 AM today
+    return d.toISOString()
+  })()
+
   return [
     // 2 days ago - Project planning (top-left)
     {
@@ -207,8 +309,8 @@ const generateExampleStickies = (): Sticky[] => {
       id: 'example-2',
       content: `<p>#planning</p>
 <ul data-type="taskList">
-  <li data-type="taskItem" data-checked="true"><label><input type="checkbox"></label><div><p>Research tech stack</p></div></li>
-  <li data-type="taskItem" data-checked="true"><label><input type="checkbox"></label><div><p>Set up dev environment</p></div></li>
+  <li data-type="taskItem" data-checked="true" data-completed-at="${yesterdayTimestamp}"><label><input type="checkbox" checked></label><div><p>Research tech stack</p></div></li>
+  <li data-type="taskItem" data-checked="true" data-completed-at="${yesterdayTimestamp}"><label><input type="checkbox" checked></label><div><p>Set up dev environment</p></div></li>
   <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Create wireframes !!</p></div></li>
 </ul>`,
       x: 368,
@@ -218,7 +320,7 @@ const generateExampleStickies = (): Sticky[] => {
       measuredHeight: 148,
     },
 
-    // Yesterday - Active work (top-right, with gap from 2-days-ago group)
+    // Yesterday - Active work with nested subtasks
     {
       id: 'example-3',
       content: `<p><strong>Meeting Notes</strong></p>
@@ -236,20 +338,25 @@ const generateExampleStickies = (): Sticky[] => {
     },
     {
       id: 'example-4',
-      content: `<p>!! #work</p>
+      content: `<p>#work</p>
 <ul data-type="taskList">
-  <li data-type="taskItem" data-checked="true"><label><input type="checkbox"></label><div><p>Send project update email</p></div></li>
-  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Review pull requests #code</p></div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Launch feature !!</p>
+    <ul data-type="taskList">
+      <li data-type="taskItem" data-checked="true" data-completed-at="${yesterdayTimestamp}"><label><input type="checkbox" checked></label><div><p>Write tests</p></div></li>
+      <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Deploy to staging -></p></div></li>
+      <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Get QA approval</p></div></li>
+    </ul>
+  </div></li>
   <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Update documentation !!!</p></div></li>
 </ul>`,
       x: 992,
       y: 96,
       date: yesterday,
       zIndex: 4,
-      measuredHeight: 148,
+      measuredHeight: 200,
     },
 
-    // Today - Getting started (bottom-left)
+    // Today - Getting started
     {
       id: 'example-5',
       content: `<p><strong>Welcome to Thought Canvas!</strong></p>
@@ -270,15 +377,20 @@ const generateExampleStickies = (): Sticky[] => {
       id: 'example-6',
       content: `<p>!!! #today</p>
 <ul data-type="taskList">
-  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Try creating a new note</p></div></li>
-  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Open the Tasks panel</p></div></li>
-  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Try priority: add ! or !! to a todo</p></div></li>
+  <li data-type="taskItem" data-checked="true" data-completed-at="${todayTimestamp}"><label><input type="checkbox" checked></label><div><p>Try these features</p>
+    <ul data-type="taskList">
+      <li data-type="taskItem" data-checked="true" data-completed-at="${todayTimestamp}"><label><input type="checkbox" checked></label><div><p>Check a box and filter by "Done today"</p></div></li>
+      <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Add -> to promote a subtask -></p></div></li>
+      <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Add priority with ! or !!</p></div></li>
+    </ul>
+  </div></li>
+  <li data-type="taskItem" data-checked="false"><label><input type="checkbox"></label><div><p>Open the Tasks panel to see all tasks</p></div></li>
 </ul>`,
       x: 368,
       y: 368,
       date: today,
       zIndex: 6,
-      measuredHeight: 148,
+      measuredHeight: 220,
     }
   ]
 }
@@ -336,6 +448,25 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   const [showTasks, setShowTasks] = useState(initialConfig.showTasks)
   const wasOverlayOpenRef = useRef(false)
   const [taskViewMode, setTaskViewMode] = useState<'panel' | 'overlay'>(initialConfig.taskViewMode)
+
+  // Scroll on Focus state
+  const [scrollOnFocus, setScrollOnFocus] = useState<boolean>(() => {
+    return localStorage.getItem('thought-canvas-scroll-on-focus') === 'true'
+  })
+  const [focusedTodoKey, setFocusedTodoKeyState] = useState<string | null>(null)
+
+  // Persist scrollOnFocus setting
+  useEffect(() => {
+    localStorage.setItem('thought-canvas-scroll-on-focus', String(scrollOnFocus))
+  }, [scrollOnFocus])
+
+  // Wrapper to clear focusedTodoKey when scrollOnFocus is disabled
+  const setFocusedTodoKey = useCallback((key: string | null) => {
+    if (scrollOnFocus) {
+      setFocusedTodoKeyState(key)
+    }
+  }, [scrollOnFocus])
+
   const [tasksGroup, setTasksGroup] = useState<TasksGroupState>(() => {
     try {
       const stored = localStorage.getItem(TASKS_GROUP_KEY)
@@ -544,7 +675,12 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }
 
     // Helper to check if a sticky's date matches the filter
+    // Note: completion-based filters are handled at the todo level, not sticky level
     const matchesDateFilter = (stickyDate: string): boolean => {
+      // Completion filters don't filter by sticky date - they filter by completion time
+      if (filters.dateFilter === 'completed-today' || filters.dateFilter === 'completed-week') {
+        return true // Let all stickies through, filtering happens at todo level
+      }
       if (filters.dateFilter === 'all') return true
       const today = new Date()
       today.setHours(0, 0, 0, 0)
@@ -565,19 +701,50 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       return true
     }
 
+    // Helper to check if a todo matches completion-based filters
+    const matchesCompletionFilter = (todo: { checked: boolean; completedAt?: string }): boolean => {
+      if (filters.dateFilter === 'completed-today') {
+        if (!todo.checked || !todo.completedAt) return false
+        const completedDate = new Date(todo.completedAt)
+        const today = new Date()
+        return (
+          completedDate.getFullYear() === today.getFullYear() &&
+          completedDate.getMonth() === today.getMonth() &&
+          completedDate.getDate() === today.getDate()
+        )
+      }
+      if (filters.dateFilter === 'completed-week') {
+        if (!todo.checked || !todo.completedAt) return false
+        const completedDate = new Date(todo.completedAt)
+        const weekAgo = new Date()
+        weekAgo.setDate(weekAgo.getDate() - 7)
+        weekAgo.setHours(0, 0, 0, 0)
+        return completedDate >= weekAgo
+      }
+      return true
+    }
+
     regularStickies.forEach(sticky => {
       // Apply date filter at the sticky level
       if (!matchesDateFilter(sticky.date)) return
 
       const { todos, noteTags } = parseContent(sticky.content)
-      todos.forEach((todo, lineIndex) => {
+      todos.forEach((todo) => {
         if (!todo.cleanText) return
-        // Apply hideCompleted filter
-        if (filters.hideCompleted && todo.checked) return
+        // Apply hideCompleted filter (but not for completion-based date filters)
+        const isCompletionFilter = filters.dateFilter === 'completed-today' || filters.dateFilter === 'completed-week'
+        if (filters.hideCompleted && todo.checked && !isCompletionFilter) return
+        // Apply completion-based date filter
+        if (!matchesCompletionFilter(todo)) return
 
-        const taskId = `task-${sticky.id}-${lineIndex}`
+        // Only show top-level tasks (depth 0 or undefined) OR promoted subtasks
+        const isTopLevel = todo.depth === undefined || todo.depth === 0
+        const isPromoted = todo.isPromoted === true
+        if (!isTopLevel && !isPromoted) return
+
+        const taskId = `task-${sticky.id}-${todo.lineIndex}`
         const existingTask = existingTaskStickies.find(t => t.id === taskId)
-        const storedPos = taskCardPositions[`${sticky.id}-${lineIndex}`]
+        const storedPos = taskCardPositions[`${sticky.id}-${todo.lineIndex}`]
 
         let x: number, y: number
 
@@ -607,10 +774,13 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
           zIndex: 1,
           isTask: true,
           sourceId: sticky.id,
-          sourceLineIndex: lineIndex,
+          sourceLineIndex: todo.lineIndex,
           taskChecked: todo.checked,
           taskPriority: todo.priority,
           taskTags: [...todo.tags, ...noteTags],
+          taskCompletedAt: todo.completedAt,
+          taskParentText: todo.parentText,
+          taskDepth: todo.depth,
         })
       })
     })
@@ -833,7 +1003,17 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   }, [stickies, pushHistory])
 
   const updateSticky = useCallback((id: string, updates: Partial<Sticky>) => {
-    const newStickies = stickies.map(s => s.id === id ? { ...s, ...updates } : s)
+    const newStickies = stickies.map(s => {
+      if (s.id !== id) return s
+
+      // If content is being updated, add completion timestamps for checkbox changes
+      if (updates.content !== undefined) {
+        const processedContent = addCompletionTimestamps(s.content, updates.content)
+        return { ...s, ...updates, content: processedContent }
+      }
+
+      return { ...s, ...updates }
+    })
 
     // Skip history for internal updates (measuredHeight) and content updates during editing
     // Content history is handled when editing ends via setEditingIdWithHistory
@@ -1929,7 +2109,25 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
         if (taskItems[lineIndex]) {
           const currentChecked = taskItems[lineIndex].getAttribute('data-checked') === 'true'
-          taskItems[lineIndex].setAttribute('data-checked', String(!currentChecked))
+          const newChecked = !currentChecked
+          taskItems[lineIndex].setAttribute('data-checked', String(newChecked))
+
+          // Also update the input checkbox's checked attribute for visual sync
+          const checkbox = taskItems[lineIndex].querySelector('input[type="checkbox"]')
+          if (checkbox) {
+            if (newChecked) {
+              checkbox.setAttribute('checked', '')
+            } else {
+              checkbox.removeAttribute('checked')
+            }
+          }
+
+          // Add or remove completion timestamp
+          if (newChecked) {
+            taskItems[lineIndex].setAttribute('data-completed-at', new Date().toISOString())
+          } else {
+            taskItems[lineIndex].removeAttribute('data-completed-at')
+          }
 
           // Serialize back to HTML (just the body content)
           const newContent = doc.body.innerHTML
@@ -2169,6 +2367,10 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     setFilters,
     setShowTasks,
     setTaskViewMode,
+    scrollOnFocus,
+    setScrollOnFocus,
+    focusedTodoKey,
+    setFocusedTodoKey,
     tasksGroup,
     taskCardPositions,
     updateTasksGroupPosition,
