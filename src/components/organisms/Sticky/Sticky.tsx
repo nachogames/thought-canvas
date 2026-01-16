@@ -12,7 +12,8 @@ function StickyContentView({ content }: { content: string }) {
   const ref = useRef<HTMLDivElement>(null)
 
   // Sync checkbox checked property with data-checked attribute after render
-  useEffect(() => {
+  // Use useLayoutEffect to sync BEFORE browser paints (prevents flash)
+  useLayoutEffect(() => {
     if (!ref.current) return
 
     const taskItems = ref.current.querySelectorAll('li[data-type="taskItem"]')
@@ -23,7 +24,7 @@ function StickyContentView({ content }: { content: string }) {
         checkbox.checked = isChecked
       }
     })
-  }, [content])
+  }) // Run on every render to ensure sync
 
   return (
     <div
