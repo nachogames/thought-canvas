@@ -409,6 +409,23 @@ body {
   text-decoration: none;
 }
 
+/* Canceled tasks (text starts with //) - red strikethrough, distinct from completed */
+.sticky-content ul[data-type="taskList"] li[data-canceled="true"] > div > p {
+  text-decoration: line-through;
+  color: color-mix(in srgb, var(--color-danger) 60%, transparent);
+}
+
+/* Canceled task checkbox - dim it out */
+.sticky-content ul[data-type="taskList"] li[data-canceled="true"] > label input[type="checkbox"] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* Don't strikethrough nested task lists when parent is canceled */
+.sticky-content ul[data-type="taskList"] li[data-canceled="true"] > div > ul[data-type="taskList"] {
+  text-decoration: none;
+}
+
 .sticky-content ul[data-type="taskList"] li > div {
   min-height: 1.5em;
   flex: 1;

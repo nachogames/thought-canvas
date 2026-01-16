@@ -14,10 +14,17 @@ const PRIORITY_REGEX = /(?:^|\s)(!{1,4})(?:\s|$)/
 const PROMOTION_MARKER_REGEX = /->\s*$/
 
 /**
- * Remove tags, priority markers, and promotion marker from text for display
+ * Cancel marker regex: // at start of text (with optional trailing space)
+ * Marks a task as canceled/ignored
+ */
+const CANCEL_MARKER_REGEX = /^\/\/\s*/
+
+/**
+ * Remove tags, priority markers, cancel marker, and promotion marker from text for display
  */
 export function cleanText(text: string): string {
   return text
+    .replace(CANCEL_MARKER_REGEX, '')        // Remove // cancel marker
     .replace(/#\w+/g, '')                    // Remove #tags
     .replace(/(?:^|\s)!{1,4}(?:\s|$)/g, ' ') // Remove priority markers
     .replace(PROMOTION_MARKER_REGEX, '')     // Remove -> promotion marker
@@ -116,49 +123,86 @@ function getDirectTextContent(element: Element): string {
  * Get HTML content from a task item for rich rendering in TodoPane.
  * Extracts only the text content with basic formatting (bold, italic, links, line breaks).
  * Excludes: nested task lists, checkboxes, labels, task item structure.
+ *
+ * Tiptap task item structure:
+ * <li data-type="taskItem">
+ *   <label><input type="checkbox"></label>
+ *   <div>
+ *     <p>First line</p>
+ *     <p>Second line</p>
+ *     <ul data-type="taskList">...</ul>  <!-- nested subtasks -->
+ *   </div>
+ * </li>
  */
 function getTaskItemHtmlContent(element: Element): string {
   const parts: string[] = []
 
-  function processNode(node: Node): void {
+  function processNode(node: Node, isFirstBlock: boolean = true): boolean {
     if (node.nodeType === Node.TEXT_NODE) {
-      parts.push(node.textContent || '')
+      const text = node.textContent || ''
+      if (text.trim()) {
+        parts.push(text)
+      }
+      return isFirstBlock
     } else if (node.nodeType === Node.ELEMENT_NODE) {
       const el = node as Element
       const tagName = el.tagName.toLowerCase()
 
       // Skip elements we don't want
-      if (el.getAttribute('data-type') === 'taskList') return // Nested task lists
-      if (el.getAttribute('data-type') === 'taskItem') return // Nested task items
-      if (tagName === 'label') return // Checkbox labels
-      if (tagName === 'input') return // Checkboxes
+      if (el.getAttribute('data-type') === 'taskList') return isFirstBlock // Nested task lists
+      if (el.getAttribute('data-type') === 'taskItem') return isFirstBlock // Nested task items
+      if (tagName === 'label') return isFirstBlock // Checkbox labels
+      if (tagName === 'input') return isFirstBlock // Checkboxes
 
       // Preserve formatting elements with their HTML
       if (['strong', 'b', 'em', 'i', 'a', 'code', 'mark', 's', 'u'].includes(tagName)) {
         parts.push(el.outerHTML)
-        return
+        return isFirstBlock
       }
 
-      // For block elements, add line breaks
-      if (['p', 'div', 'br'].includes(tagName)) {
-        if (parts.length > 0 && tagName !== 'br') {
-          // Add line break before new block (except for first element)
-          const lastPart = parts[parts.length - 1]
-          if (lastPart && !lastPart.endsWith('<br>') && !lastPart.endsWith('\n')) {
-            parts.push('<br>')
-          }
+      // Handle br tags
+      if (tagName === 'br') {
+        parts.push('<br>')
+        return false
+      }
+
+      // For paragraph elements, add line breaks between them
+      if (tagName === 'p') {
+        if (!isFirstBlock) {
+          parts.push('<br>')
         }
         // Process children
-        el.childNodes.forEach(child => processNode(child))
-        return
+        el.childNodes.forEach(child => processNode(child, true))
+        return false // Next block is not first
+      }
+
+      // For div elements (content wrapper), process children
+      if (tagName === 'div') {
+        let first = isFirstBlock
+        el.childNodes.forEach(child => {
+          first = processNode(child, first)
+        })
+        return first
       }
 
       // For other elements, just process children
-      el.childNodes.forEach(child => processNode(child))
+      el.childNodes.forEach(child => processNode(child, isFirstBlock))
+      return isFirstBlock
     }
+    return isFirstBlock
   }
 
-  element.childNodes.forEach(child => processNode(child))
+  // Find the content div (sibling of the label/checkbox)
+  const contentDiv = element.querySelector(':scope > div')
+  if (contentDiv) {
+    let isFirst = true
+    contentDiv.childNodes.forEach(child => {
+      isFirst = processNode(child, isFirst)
+    })
+  } else {
+    // Fallback: process entire element
+    element.childNodes.forEach(child => processNode(child, true))
+  }
 
   // Clean up: remove leading/trailing breaks, collapse multiple breaks
   let result = parts.join('')
@@ -232,7 +276,8 @@ function parseHtmlContent(html: string): ParsedContent {
     parentIndex: number | null,
     parentText: string | null,
     parentTags: Set<string> = new Set(),
-    parentPriority: number = 0
+    parentPriority: number = 0,
+    parentCanceled: boolean = false
   ) {
     const items = taskList.querySelectorAll(':scope > li[data-type="taskItem"]')
 
@@ -267,9 +312,13 @@ function parseHtmlContent(html: string): ParsedContent {
       const hasPromotionMarker = PROMOTION_MARKER_REGEX.test(text)
       const isPromoted = depth > 0 && hasPromotionMarker
 
+      // Check for cancel marker (// at start) - also inherit from parent
+      const isCanceled = parentCanceled || CANCEL_MARKER_REGEX.test(text)
+
       const todo: ParsedTodo = {
         lineIndex: currentIndex,
         checked,
+        canceled: isCanceled,
         text,
         cleanText: cleanText(text),
         htmlContent,
@@ -288,7 +337,11 @@ function parseHtmlContent(html: string): ParsedContent {
         }),
       }
 
-      todos.push(todo)
+      // Only add non-canceled tasks to the list
+      // Canceled tasks are completely excluded from todo tracking
+      if (!isCanceled) {
+        todos.push(todo)
+      }
 
       // Parse nested task lists (they can be nested inside div elements within the li)
       const nestedTaskLists = item.querySelectorAll('ul[data-type="taskList"]')
@@ -296,8 +349,8 @@ function parseHtmlContent(html: string): ParsedContent {
         // Make sure this nested list is directly inside this item (not in a deeper nested item)
         const parentItem = nestedList.closest('li[data-type="taskItem"]')
         if (parentItem === item) {
-          // Pass down this task's tags and priority to children
-          parseTaskList(nestedList, depth + 1, currentIndex, cleanText(text), effectiveTags, todoPriority)
+          // Pass down this task's tags, priority, and canceled state to children
+          parseTaskList(nestedList, depth + 1, currentIndex, cleanText(text), effectiveTags, todoPriority, isCanceled)
         }
       })
     })

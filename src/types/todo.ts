@@ -1,6 +1,7 @@
 export interface ParsedTodo {
   lineIndex: number
   checked: boolean
+  canceled?: boolean // Task starts with // marker (canceled/ignored)
   text: string
   cleanText: string // Text with tags and priority markers removed
   htmlContent?: string // Inner HTML content for rich rendering in TodoPane

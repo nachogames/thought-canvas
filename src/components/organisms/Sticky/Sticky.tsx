@@ -7,56 +7,53 @@ import { useLongPress } from '@/hooks'
 import { useStickies } from '@/context/StickiesContext'
 import type { Sticky as StickyType, StickyColor } from '@/types'
 
-// Generate a hash of content excluding checkbox states (data-checked attributes)
-function getContentStructureHash(content: string): string {
-  // Remove data-checked and data-completed-at attributes for comparison
-  // This way, only structural changes trigger innerHTML replacement
-  return content
-    .replace(/\s*data-checked="(true|false)"/g, '')
-    .replace(/\s*data-completed-at="[^"]*"/g, '')
+/**
+ * Transform HTML content to add data-canceled attribute to task items starting with //
+ * This enables CSS styling for canceled tasks in view mode
+ */
+function addCanceledAttributes(html: string): string {
+  if (!html.includes('data-type="taskItem"')) return html
+
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(html, 'text/html')
+
+  // Find all task items and check if their text starts with //
+  const taskItems = doc.querySelectorAll('li[data-type="taskItem"]')
+  const canceledItems = new Set<Element>()
+
+  taskItems.forEach(item => {
+    // Get direct text content (first paragraph)
+    const firstP = item.querySelector(':scope > div > p')
+    const text = firstP?.textContent?.trim() || ''
+
+    if (text.startsWith('//')) {
+      canceledItems.add(item)
+      item.setAttribute('data-canceled', 'true')
+    }
+  })
+
+  // Mark all descendants of canceled items as canceled too
+  canceledItems.forEach(item => {
+    const nestedItems = item.querySelectorAll('li[data-type="taskItem"]')
+    nestedItems.forEach(nested => {
+      nested.setAttribute('data-canceled', 'true')
+    })
+  })
+
+  return doc.body.innerHTML
 }
 
-// Component that renders sticky content and syncs checkbox states
+// Simple view-only content renderer
 function StickyContentView({ content }: { content: string }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const lastStructureHashRef = useRef<string>('')
-
-  // Only update innerHTML when structure changes, not just checkbox state
-  useLayoutEffect(() => {
-    if (!ref.current) return
-
-    const currentStructureHash = getContentStructureHash(content)
-    const structureChanged = currentStructureHash !== lastStructureHashRef.current
-
-    if (structureChanged) {
-      // Structure changed - need to replace innerHTML
-      ref.current.innerHTML = content || '<p class="is-editor-empty" data-placeholder="Type here..."></p>'
-      lastStructureHashRef.current = currentStructureHash
-    }
-
-    // Always sync checkbox states (whether structure changed or not)
-    const taskItems = ref.current.querySelectorAll('li[data-type="taskItem"]')
-
-    // Parse the new content to get current checkbox states
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(content, 'text/html')
-    const newTaskItems = doc.querySelectorAll('li[data-type="taskItem"]')
-
-    taskItems.forEach((item, index) => {
-      const checkbox = item.querySelector('input[type="checkbox"]') as HTMLInputElement | null
-      if (checkbox && newTaskItems[index]) {
-        const isChecked = newTaskItems[index].getAttribute('data-checked') === 'true'
-        checkbox.checked = isChecked
-        // Also sync the data-checked attribute on the li for CSS styling
-        item.setAttribute('data-checked', isChecked ? 'true' : 'false')
-      }
-    })
+  const processedContent = useMemo(() => {
+    if (!content) return '<p class="is-editor-empty" data-placeholder="Type here..."></p>'
+    return addCanceledAttributes(content)
   }, [content])
 
   return (
     <div
-      ref={ref}
       className="sticky-content outline-none text-sm"
+      dangerouslySetInnerHTML={{ __html: processedContent }}
     />
   )
 }
@@ -100,6 +97,9 @@ const StickyComponent = function Sticky({
   const contentRef = useRef<HTMLDivElement>(null)
   const colorPickerRef = useRef<HTMLDivElement>(null)
   const [clickCoords, setClickCoords] = useState<{ x: number; y: number } | null>(null)
+  const [toggleTaskIndex, setToggleTaskIndex] = useState<number | null>(null)
+  const toggleTaskIndexRef = useRef<number | null>(null) // Ref for synchronous access in event handlers
+  const [focusTaskIndex, setFocusTaskIndex] = useState<number | null>(null)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [isLongPressing, setIsLongPressing] = useState(false)
 
@@ -191,6 +191,8 @@ const StickyComponent = function Sticky({
     // Pass our id so context can ignore stale blur events
     // (when clicking another card, blur fires after the new card starts editing)
     onSetEditing(null, sticky.id)
+    setToggleTaskIndex(null) // Clear pending toggle
+    toggleTaskIndexRef.current = null
   }, [onSetEditing, sticky.id])
 
   const handleHeaderMouseDown = useCallback((e: React.MouseEvent) => {
@@ -228,53 +230,69 @@ const StickyComponent = function Sticky({
     moveThreshold: 10
   })
 
-  // Toggle a todo checkbox by its index within the sticky content
-  const handleToggleTodoByIndex = useCallback((lineIndex: number) => {
-    // Parse the content as HTML and find the checkbox at the given index
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(sticky.content, 'text/html')
-    const taskItems = doc.querySelectorAll('li[data-type="taskItem"]')
-
-    if (taskItems[lineIndex]) {
-      const item = taskItems[lineIndex]
-      const currentChecked = item.getAttribute('data-checked') === 'true'
-      item.setAttribute('data-checked', currentChecked ? 'false' : 'true')
-
-      // Update completedAt timestamp
-      if (!currentChecked) {
-        item.setAttribute('data-completed-at', new Date().toISOString())
-      } else {
-        item.removeAttribute('data-completed-at')
-      }
-
-      // Get the updated HTML
-      const newContent = doc.body.innerHTML
-      onUpdate(sticky.id, { content: newContent })
-    }
-  }, [sticky.id, sticky.content, onUpdate])
-
   const handleContentClick = useCallback((e: React.MouseEvent) => {
-    if (isEditing) return // This card is being edited, let TiptapEditor handle clicks
-    e.stopPropagation()
-
     const target = e.target as HTMLElement
 
-    // Check if user clicked a checkbox - toggle it without entering edit mode
+    // Check if user clicked a checkbox
     if (target.tagName === 'INPUT' && target.getAttribute('type') === 'checkbox') {
-      e.preventDefault()
-      // Find the parent task item and its index
+      e.stopPropagation()
+
+      // If we have a pending toggle from mousedown, don't do anything else
+      // The toggle effect in TiptapEditor will handle both toggle and cursor positioning
+      // Use ref for synchronous check since state might not be updated yet
+      if (toggleTaskIndexRef.current !== null) {
+        return
+      }
+
+      // If already in edit mode (user clicked checkbox while editing this same sticky),
+      // TipTap handles the native toggle. Just position cursor afterward.
+      if (isEditing) {
+        const taskItem = target.closest('li[data-checked]') // TipTap uses data-checked in edit mode
+        if (taskItem) {
+          const contentEl = target.closest('.ProseMirror')
+          if (contentEl) {
+            const allTaskItems = Array.from(contentEl.querySelectorAll('li[data-checked]'))
+            const lineIndex = allTaskItems.indexOf(taskItem as Element)
+            if (lineIndex !== -1) {
+              // Position cursor after TipTap processes the toggle
+              requestAnimationFrame(() => {
+                setFocusTaskIndex(lineIndex)
+                setTimeout(() => setFocusTaskIndex(null), 100)
+              })
+            }
+          }
+        }
+        return
+      }
+
+      // Not in edit mode and no pending toggle - this shouldn't happen normally
+      // because mousedown should have set things up, but handle it just in case
       const taskItem = target.closest('li[data-type="taskItem"]')
       if (taskItem) {
-        const allTaskItems = Array.from(
-          (target.closest('.sticky-content') || document).querySelectorAll('li[data-type="taskItem"]')
-        )
-        const lineIndex = allTaskItems.indexOf(taskItem as Element)
-        if (lineIndex !== -1) {
-          handleToggleTodoByIndex(lineIndex)
+        const contentEl = target.closest('.sticky-content')
+        if (contentEl) {
+          const allTaskItems = Array.from(contentEl.querySelectorAll('li[data-type="taskItem"]'))
+          const lineIndex = allTaskItems.indexOf(taskItem as Element)
+          if (lineIndex !== -1) {
+            e.preventDefault()
+            if (!isSelected) {
+              onSelect(sticky.id, false)
+            }
+            toggleTaskIndexRef.current = lineIndex
+            setToggleTaskIndex(lineIndex)
+            setClickCoords(null)
+            onSetEditing(sticky.id)
+          }
         }
       }
       return
     }
+
+    // Always stop propagation to prevent canvas from clearing editing state
+    e.stopPropagation()
+
+    // For non-checkbox clicks, let TiptapEditor handle if already editing
+    if (isEditing) return
 
     // Check if user clicked a link - open it instead of entering edit mode
     if (target.tagName === 'A' && target.getAttribute('href')) {
@@ -290,27 +308,78 @@ const StickyComponent = function Sticky({
       onSetEditing(null)
       onSelect(sticky.id, true)
     } else {
-      // Single click: select and enter edit mode
-      if (!isSelected) {
-        onSelect(sticky.id, false)
-      }
-      setClickCoords({ x: e.clientX, y: e.clientY })
-      onSetEditing(sticky.id)
+      // Single click: editing, selection, and clickCoords were already set in handleContentMouseDown
+      setToggleTaskIndex(null) // Clear any pending toggle
+      toggleTaskIndexRef.current = null
     }
-  }, [isEditing, isSelected, sticky.id, onSelect, onSetEditing, handleToggleTodoByIndex])
+  }, [isEditing, isSelected, sticky.id, onSelect, onSetEditing])
 
   const handleContentMouseDown = useCallback((e: React.MouseEvent) => {
     if (isEditing) return
     e.stopPropagation()
 
-    // Don't prevent default on checkbox clicks - let them be handled by onClick
+    // For checkbox clicks, handle everything in mousedown to avoid race conditions
+    // When switching from another editing sticky, by the time click fires, isEditing is already true
+    // which causes the click handler to go into the wrong branch
     const target = e.target as HTMLElement
     if (target.tagName === 'INPUT' && target.getAttribute('type') === 'checkbox') {
+      e.preventDefault() // Prevent native checkbox toggle, we'll handle it via TipTap
+
+      // Find which task was clicked
+      const taskItem = target.closest('li[data-type="taskItem"]')
+      if (taskItem) {
+        const contentEl = target.closest('.sticky-content')
+        if (contentEl) {
+          const allTaskItems = Array.from(contentEl.querySelectorAll('li[data-type="taskItem"]'))
+          const lineIndex = allTaskItems.indexOf(taskItem as Element)
+          if (lineIndex !== -1) {
+            // Select the sticky
+            if (!isSelected) {
+              onSelect(sticky.id, false)
+            }
+            // Set toggle index BEFORE entering edit mode - this will toggle + position cursor
+            // Set ref immediately for synchronous access in click handler
+            toggleTaskIndexRef.current = lineIndex
+            setToggleTaskIndex(lineIndex)
+            setClickCoords(null)
+            // Set editing state immediately, before blur from other editor
+            onSetEditing(sticky.id)
+            return
+          }
+        }
+      }
+
+      // Fallback: couldn't find task, just enter edit mode
+      if (!isSelected) {
+        onSelect(sticky.id, false)
+      }
+      onSetEditing(sticky.id)
+      return
+    }
+
+    // Don't enter edit mode for multi-select clicks
+    const isMultiSelect = e.metaKey || e.ctrlKey
+    if (isMultiSelect) {
+      return
+    }
+
+    // Don't enter edit mode for link clicks
+    if (target.tagName === 'A' && target.getAttribute('href')) {
       return
     }
 
     e.preventDefault() // Prevent text selection when not editing
-  }, [isEditing])
+
+    // Select the sticky (handles deselecting others)
+    if (!isSelected) {
+      onSelect(sticky.id, false)
+    }
+
+    // Set editing state immediately on mousedown, before blur events from other editors
+    // This ensures the stale blur check in context works correctly
+    onSetEditing(sticky.id)
+    setClickCoords({ x: e.clientX, y: e.clientY })
+  }, [isEditing, isSelected, sticky.id, onSelect, onSetEditing])
 
   const handleColorSelect = useCallback((color: StickyColor) => {
     onUpdate(sticky.id, { color })
@@ -505,6 +574,8 @@ const StickyComponent = function Sticky({
               placeholder={isTaskMode ? "Task..." : "Type here..."}
               editable={true}
               focusCoords={clickCoords}
+              toggleTaskIndex={toggleTaskIndex}
+              focusTaskIndex={focusTaskIndex}
             />
           ) : (
             <StickyContentView content={sticky.content} />

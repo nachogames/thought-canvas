@@ -181,13 +181,13 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
     }
   }, [])
 
-  // Scroll focused todo into view
+  // Scroll focused todo into view - center it for better visibility
   useEffect(() => {
     if (!scrollOnFocus || !focusedTodoKey) return
 
     const element = todoRefsMap.current.get(focusedTodoKey)
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   }, [focusedTodoKey, scrollOnFocus])
 
@@ -325,6 +325,11 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
     )
   }, [allTodos, filters])
 
+  // Set of keys for promoted todos - used to avoid showing them as subtasks in trees
+  const promotedKeys = useMemo(() => {
+    return new Set(promotedTodos.map(t => `${t.stickyId}-${t.lineIndex}`))
+  }, [promotedTodos])
+
   const completedCount = allTodos.filter(t => t.checked).length
   const totalCount = allTodos.filter(t => t.cleanText.length > 0).length
   const hasActiveFilters = filters.tag || filters.dateFilter !== 'all' || filters.hideCompleted
@@ -345,18 +350,22 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
   ]
 
   // Recursive function to render a tree node and its children
+  // Promoted subtasks still appear nested, but scroll-on-focus targets the promoted standalone card
   const renderTreeNode = (node: TaskTreeNode, depth: number): React.ReactNode => {
     const key = `${node.todo.stickyId}-${node.todo.lineIndex}`
+    const isPromoted = promotedKeys.has(key)
 
     return (
       <TodoItem
         key={key}
-        ref={(el) => setTodoRef(key, el)}
+        // Only register ref if NOT promoted (promoted tasks get ref on their standalone card)
+        ref={isPromoted ? undefined : (el) => setTodoRef(key, el)}
         todo={node.todo}
         depth={depth}
         onToggle={() => onToggle(node.todo.stickyId, node.todo.lineIndex)}
         onFocus={() => onFocusSticky(node.todo.stickyId)}
-        isFocused={focusedTodoKey === key}
+        // Only show focus highlight if NOT promoted (promoted cards show focus on standalone)
+        isFocused={!isPromoted && focusedTodoKey === key}
       >
         {node.children.length > 0 && node.children.map(child =>
           renderTreeNode(child, depth + 1)

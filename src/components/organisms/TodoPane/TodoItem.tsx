@@ -54,27 +54,15 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
   const { checked, cleanText, htmlContent, allTags, priority, parentText } = todo
   const isNested = depth > 0
 
-  // Render content - cleanText with line breaks preserved
+  // Render content - use HTML for proper formatting (bold, italic, links, line breaks)
   const renderContent = () => {
-    // Split by <br> allTags from HTML content and render with line breaks
-    if (htmlContent && htmlContent.includes('<br>')) {
-      const parts = htmlContent
-        .replace(/<[^>]*>/g, (match) => match === '<br>' ? '\n' : '') // Keep only <br> as newlines, strip other allTags
-        .split('\n')
-        .filter(Boolean)
-
-      if (parts.length > 1) {
-        return (
-          <span>
-            {parts.map((part, i) => (
-              <span key={i}>
-                {i > 0 && <br />}
-                {part.trim()}
-              </span>
-            ))}
-          </span>
-        )
-      }
+    if (htmlContent) {
+      return (
+        <span
+          className="todo-html-content"
+          dangerouslySetInnerHTML={{ __html: htmlContent }}
+        />
+      )
     }
     return <span>{cleanText}</span>
   }
@@ -92,7 +80,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
           hover:shadow-[0_10px_15px_-3px_rgba(0,0,0,0.1),0_4px_6px_-2px_rgba(0,0,0,0.05)]
           dark:hover:border-white/10
           transition-all duration-150
-          ${isFocused ? 'ring-1 ring-accent/30 bg-accent/5' : 'border-transparent'}
+          ${isFocused ? 'border-gray-400 dark:border-gray-500 border-dashed border-2' : 'border-transparent'}
         `}
       >
         {/* Header: parent task name (left) + priority dot (right) */}
@@ -114,16 +102,18 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
         )}
 
         {/* Task content: checkbox + text */}
-        <div className={`flex items-start gap-2 px-3 ${(parentText || priority > 0) ? 'pt-2' : 'pt-3'} ${allTags.size > 0 ? 'pb-2' : 'pb-3'}`}>
-          <Checkbox
-            checked={checked}
-            onChange={onToggle}
-            className="mt-[3px]"
-          />
-          <div className="flex-1 min-w-0">
+        <div className={`px-3 ${(parentText || priority > 0) ? 'pt-2' : 'pt-3'} ${allTags.size > 0 ? 'pb-2' : 'pb-3'}`}>
+          {/* Checkbox + text row with consistent 20px height */}
+          <div className="flex items-start gap-2 mb-2.5">
+            <div className="h-5 flex items-center">
+              <Checkbox
+                checked={checked}
+                onChange={onToggle}
+              />
+            </div>
             <div
               className={`
-                text-sm leading-relaxed
+                flex-1 min-w-0 text-sm leading-5
                 ${onFocus ? 'cursor-pointer hover:text-accent' : ''}
                 text-gray-800 dark:text-gray-100
                 transition-colors
@@ -133,14 +123,14 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
             >
               {renderContent()}
             </div>
-
-            {/* Nested subtasks */}
-            {children && (
-              <div className="mt-2 space-y-0.5 pl-2">
-                {children}
-              </div>
-            )}
           </div>
+
+          {/* Nested subtasks */}
+          {children && (
+            <div className="space-y-0.5 pl-2">
+              {children}
+            </div>
+          )}
         </div>
 
         {/* Footer: tags */}
@@ -159,41 +149,37 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
   return (
     <div
       ref={ref}
-      className={`
-        py-0.5 px-1.5 -mx-1.5 rounded-md transition-all duration-150
-        ${isFocused ? 'bg-accent/5 ring-1 ring-accent/20' : ''}
-      `}
+      className="rounded-md transition-colors duration-150"
     >
-      {/* Checkbox + content row */}
-      <div className="flex items-start gap-2">
-        <Checkbox
-          checked={checked}
-          onChange={onToggle}
-          size="sm"
-          className="mt-[5px]"
-        />
-        <div className="flex-1 min-w-0">
-          <span
-            className={`
-              text-xs leading-relaxed
-              ${onFocus ? 'cursor-pointer hover:text-accent' : ''}
-              text-gray-600 dark:text-gray-300
-              transition-colors
-              ${checked ? 'line-through text-gray-400 dark:text-gray-500' : ''}
-            `}
-            onClick={onFocus}
-          >
-            {renderContent()}
-          </span>
-
-          {/* Further nested subtasks */}
-          {children && (
-            <div className="mt-1 space-y-0 pl-2">
-              {children}
-            </div>
-          )}
+      {/* Checkbox + text row with consistent 20px height */}
+      <div className={`flex items-start gap-2 mb-2.5 p-0.5 border rounded ${isFocused ? 'border-gray-400 dark:border-gray-500 border-dashed' : 'border-transparent'}`}>
+        <div className="h-5 flex items-center">
+          <Checkbox
+            checked={checked}
+            onChange={onToggle}
+            size="sm"
+          />
         </div>
+        <span
+          className={`
+            flex-1 min-w-0 text-xs leading-5
+            ${onFocus ? 'cursor-pointer hover:text-accent' : ''}
+            text-gray-600 dark:text-gray-300
+            transition-colors
+            ${checked ? 'line-through text-gray-400 dark:text-gray-500' : ''}
+          `}
+          onClick={onFocus}
+        >
+          {renderContent()}
+        </span>
       </div>
+
+      {/* Further nested subtasks */}
+      {children && (
+        <div className="space-y-0 pl-2">
+          {children}
+        </div>
+      )}
     </div>
   )
 })
