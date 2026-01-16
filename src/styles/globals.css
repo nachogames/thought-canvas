@@ -215,7 +215,7 @@ body {
   height: 18px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: var(--color-bg);
+  background: transparent;
   cursor: pointer;
   transition: all 150ms ease-out;
   position: relative;
@@ -362,7 +362,7 @@ body {
   height: 18px;
   border: 1px solid var(--color-border);
   border-radius: 4px;
-  background: var(--color-bg);
+  background: transparent;
   cursor: pointer;
   transition: all 150ms ease-out;
   position: relative;
@@ -373,12 +373,15 @@ body {
   border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
 
+/* Checked state - use data-checked on parent li for view mode compatibility */
+.sticky-content ul[data-type="taskList"] li[data-checked="true"] > label input[type="checkbox"],
 .sticky-content ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
   background: var(--color-accent);
   border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
+.sticky-content ul[data-type="taskList"] li[data-checked="true"] > label input[type="checkbox"]::after,
 .sticky-content ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
   content: '';
   position: absolute;

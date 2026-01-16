@@ -259,16 +259,26 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
       return true
     }
 
-    // Recursively filter a tree node, keeping nodes that pass or have children that pass
-    function filterTree(node: TaskTreeNode): TaskTreeNode | null {
+    // Recursively filter a tree node
+    // If parent is checked and hideCompleted is on, hide the entire tree (parent + subtasks)
+    // Subtasks only hidden if their own checkbox is checked
+    function filterTree(node: TaskTreeNode, parentCheckedAndHidden: boolean = false): TaskTreeNode | null {
+      // If parent was checked and hidden, hide entire subtree
+      if (parentCheckedAndHidden) {
+        return null
+      }
+
+      // Check if this node should be hidden (checked parent hides all children)
+      const thisNodeHidden = filters.hideCompleted && !isCompletionFilter && node.todo.checked
+
       const filteredChildren = node.children
-        .map(child => filterTree(child))
+        .map(child => filterTree(child, thisNodeHidden)) // Pass down if this parent is checked
         .filter((child): child is TaskTreeNode => child !== null)
 
       const nodePassesFilters = passesFilters(node.todo)
 
-      // Keep this node if it passes filters OR has visible children
-      if (nodePassesFilters || filteredChildren.length > 0) {
+      // If node passes filters, show it with filtered children
+      if (nodePassesFilters) {
         return {
           todo: node.todo,
           children: filteredChildren
@@ -359,7 +369,7 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
     <div className="h-full flex flex-col bg-gray-50/50 dark:bg-gray-900/50 backdrop-blur-sm shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] dark:shadow-none dark:border-l dark:border-white/10">
       {/* Header - compact single row */}
       <div className="px-3 py-2 border-b border-gray-200 dark:border-white/5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Title + count */}
           <div className="flex items-center gap-1.5 mr-1">
             <h2 className="text-xs font-semibold text-gray-900 dark:text-white">Tasks</h2>

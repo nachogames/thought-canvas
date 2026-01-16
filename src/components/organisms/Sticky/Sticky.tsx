@@ -174,12 +174,55 @@ const StickyComponent = function Sticky({
     moveThreshold: 10
   })
 
+  // Toggle a todo checkbox by its index within the sticky content
+  const handleToggleTodoByIndex = useCallback((lineIndex: number) => {
+    // Parse the content as HTML and find the checkbox at the given index
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(sticky.content, 'text/html')
+    const taskItems = doc.querySelectorAll('li[data-type="taskItem"]')
+
+    if (taskItems[lineIndex]) {
+      const item = taskItems[lineIndex]
+      const currentChecked = item.getAttribute('data-checked') === 'true'
+      item.setAttribute('data-checked', currentChecked ? 'false' : 'true')
+
+      // Update completedAt timestamp
+      if (!currentChecked) {
+        item.setAttribute('data-completed-at', new Date().toISOString())
+      } else {
+        item.removeAttribute('data-completed-at')
+      }
+
+      // Get the updated HTML
+      const newContent = doc.body.innerHTML
+      onUpdate(sticky.id, { content: newContent })
+    }
+  }, [sticky.id, sticky.content, onUpdate])
+
   const handleContentClick = useCallback((e: React.MouseEvent) => {
     if (isEditing) return // This card is being edited, let TiptapEditor handle clicks
     e.stopPropagation()
 
-    // Check if user clicked a link - open it instead of entering edit mode
     const target = e.target as HTMLElement
+
+    // Check if user clicked a checkbox - toggle it without entering edit mode
+    if (target.tagName === 'INPUT' && target.getAttribute('type') === 'checkbox') {
+      e.preventDefault()
+      // Find the parent task item and its index
+      const taskItem = target.closest('li[data-type="taskItem"]')
+      if (taskItem) {
+        const allTaskItems = Array.from(
+          (target.closest('.sticky-content') || document).querySelectorAll('li[data-type="taskItem"]')
+        )
+        const lineIndex = allTaskItems.indexOf(taskItem as Element)
+        if (lineIndex !== -1) {
+          handleToggleTodoByIndex(lineIndex)
+        }
+      }
+      return
+    }
+
+    // Check if user clicked a link - open it instead of entering edit mode
     if (target.tagName === 'A' && target.getAttribute('href')) {
       e.preventDefault()
       window.open(target.getAttribute('href')!, '_blank', 'noopener,noreferrer')
@@ -200,11 +243,18 @@ const StickyComponent = function Sticky({
       setClickCoords({ x: e.clientX, y: e.clientY })
       onSetEditing(sticky.id)
     }
-  }, [isEditing, isSelected, sticky.id, onSelect, onSetEditing])
+  }, [isEditing, isSelected, sticky.id, onSelect, onSetEditing, handleToggleTodoByIndex])
 
   const handleContentMouseDown = useCallback((e: React.MouseEvent) => {
     if (isEditing) return
     e.stopPropagation()
+
+    // Don't prevent default on checkbox clicks - let them be handled by onClick
+    const target = e.target as HTMLElement
+    if (target.tagName === 'INPUT' && target.getAttribute('type') === 'checkbox') {
+      return
+    }
+
     e.preventDefault() // Prevent text selection when not editing
   }, [isEditing])
 

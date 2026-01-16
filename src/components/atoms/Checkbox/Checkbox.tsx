@@ -32,7 +32,7 @@ export function Checkbox({ checked, onChange, size: _size = 'md', className = ''
         borderRadius: 4,
         border: '1px solid',
         borderColor: checked ? 'var(--color-accent)' : 'var(--color-border)',
-        backgroundColor: checked ? 'var(--color-accent)' : 'var(--color-bg)',
+        backgroundColor: checked ? 'var(--color-accent)' : 'transparent',
         boxShadow: checked ? '0 1px 3px rgba(0, 0, 0, 0.12)' : '0 1px 2px rgba(0, 0, 0, 0.04)',
         transition: 'all 150ms ease-out',
         position: 'relative',
