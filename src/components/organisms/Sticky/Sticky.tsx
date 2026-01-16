@@ -7,30 +7,56 @@ import { useLongPress } from '@/hooks'
 import { useStickies } from '@/context/StickiesContext'
 import type { Sticky as StickyType, StickyColor } from '@/types'
 
+// Generate a hash of content excluding checkbox states (data-checked attributes)
+function getContentStructureHash(content: string): string {
+  // Remove data-checked and data-completed-at attributes for comparison
+  // This way, only structural changes trigger innerHTML replacement
+  return content
+    .replace(/\s*data-checked="(true|false)"/g, '')
+    .replace(/\s*data-completed-at="[^"]*"/g, '')
+}
+
 // Component that renders sticky content and syncs checkbox states
 function StickyContentView({ content }: { content: string }) {
   const ref = useRef<HTMLDivElement>(null)
+  const lastStructureHashRef = useRef<string>('')
 
-  // Sync checkbox checked property with data-checked attribute after render
-  // Use useLayoutEffect to sync BEFORE browser paints (prevents flash)
+  // Only update innerHTML when structure changes, not just checkbox state
   useLayoutEffect(() => {
     if (!ref.current) return
 
+    const currentStructureHash = getContentStructureHash(content)
+    const structureChanged = currentStructureHash !== lastStructureHashRef.current
+
+    if (structureChanged) {
+      // Structure changed - need to replace innerHTML
+      ref.current.innerHTML = content || '<p class="is-editor-empty" data-placeholder="Type here..."></p>'
+      lastStructureHashRef.current = currentStructureHash
+    }
+
+    // Always sync checkbox states (whether structure changed or not)
     const taskItems = ref.current.querySelectorAll('li[data-type="taskItem"]')
-    taskItems.forEach((item) => {
+
+    // Parse the new content to get current checkbox states
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(content, 'text/html')
+    const newTaskItems = doc.querySelectorAll('li[data-type="taskItem"]')
+
+    taskItems.forEach((item, index) => {
       const checkbox = item.querySelector('input[type="checkbox"]') as HTMLInputElement | null
-      if (checkbox) {
-        const isChecked = item.getAttribute('data-checked') === 'true'
+      if (checkbox && newTaskItems[index]) {
+        const isChecked = newTaskItems[index].getAttribute('data-checked') === 'true'
         checkbox.checked = isChecked
+        // Also sync the data-checked attribute on the li for CSS styling
+        item.setAttribute('data-checked', isChecked ? 'true' : 'false')
       }
     })
-  }) // Run on every render to ensure sync
+  }, [content])
 
   return (
     <div
       ref={ref}
       className="sticky-content outline-none text-sm"
-      dangerouslySetInnerHTML={{ __html: content || '<p class="is-editor-empty" data-placeholder="Type here..."></p>' }}
     />
   )
 }
