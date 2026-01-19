@@ -36,6 +36,8 @@ export type DateFilterValue =
   | 'completed-today'
   | 'completed-yesterday'
   | 'completed-week'
+  | 'completed-2-days-ago'
+  | 'completed-3-days-ago'
   | { start: string; end: string }
 
 export interface TodoFilters {

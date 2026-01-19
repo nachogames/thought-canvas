@@ -38,6 +38,16 @@ function PriorityDot({ priority }: { priority: number }) {
   )
 }
 
+// Format completion date for display
+function formatCompletionDate(isoTimestamp: string): string {
+  const date = new Date(isoTimestamp)
+  return date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
+  }) // e.g., "Fri, Jan 17"
+}
+
 interface TodoItemProps {
   todo: TodoWithContext
   depth?: number // 0 = parent, 1+ = nested
@@ -51,7 +61,7 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
   { todo, depth = 0, onToggle, onFocus, children, isFocused },
   ref
 ) {
-  const { checked, cleanText, htmlContent, allTags, priority, parentText } = todo
+  const { checked, cleanText, htmlContent, allTags, priority, parentText, completedAt } = todo
   const isNested = depth > 0
 
   // Render content - use HTML for proper formatting (bold, italic, links, line breaks)
@@ -83,8 +93,8 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
           ${isFocused ? 'border-gray-400 dark:border-gray-500 border-dashed border-2' : 'border-transparent'}
         `}
       >
-        {/* Header: parent task name (left) + priority dot (right) */}
-        {(parentText || priority > 0) && (
+        {/* Header: parent task name (left) + completion date + priority dot (right) */}
+        {(parentText || priority > 0 || (checked && completedAt)) && (
           <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-white/[0.02] rounded-t-xl border-b border-gray-100 dark:border-white/5">
             {parentText && !children ? (
               <span
@@ -97,12 +107,18 @@ export const TodoItem = forwardRef<HTMLDivElement, TodoItemProps>(function TodoI
             ) : (
               <div className="flex-1" />
             )}
+            {/* Completion date - only show if checked and has completedAt */}
+            {checked && completedAt && (
+              <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                {formatCompletionDate(completedAt)}
+              </span>
+            )}
             <PriorityDot priority={priority} />
           </div>
         )}
 
         {/* Task content: checkbox + text */}
-        <div className={`px-3 ${(parentText || priority > 0) ? 'pt-2' : 'pt-3'} ${allTags.size > 0 ? 'pb-2' : 'pb-3'}`}>
+        <div className={`px-3 ${(parentText || priority > 0 || (checked && completedAt)) ? 'pt-2' : 'pt-3'} ${allTags.size > 0 ? 'pb-2' : 'pb-3'}`}>
           {/* Checkbox + text row with consistent 20px height */}
           <div className="flex items-start gap-2 mb-2.5">
             <div className="h-5 flex items-center">

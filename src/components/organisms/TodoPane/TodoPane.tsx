@@ -20,7 +20,7 @@ function parseLocalDate(dateString: string): Date {
 function matchesDateFilter(todoDate: string, filter: DateFilterValue): boolean {
   if (filter === 'all') return true
   // Completion-based filters are handled separately
-  if (filter === 'completed-today' || filter === 'completed-yesterday' || filter === 'completed-week') return true
+  if (typeof filter === 'string' && filter.startsWith('completed-')) return true
 
   const today = new Date()
   today.setHours(0, 0, 0, 0)
@@ -44,6 +44,30 @@ function matchesDateFilter(todoDate: string, filter: DateFilterValue): boolean {
     return date >= start && date <= end
   }
   return true
+}
+
+// Get label for N days ago with date (e.g., "2 days ago (Fri, Jan 17)")
+function getDayLabel(daysAgo: number): string {
+  const date = new Date()
+  date.setDate(date.getDate() - daysAgo)
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
+  const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `${daysAgo} days ago (${dayName}, ${monthDay})`
+}
+
+// Get yesterday label with date
+function getYesterdayLabel(): string {
+  const date = new Date()
+  date.setDate(date.getDate() - 1)
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'short' })
+  const monthDay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  return `Yesterday (${dayName}, ${monthDay})`
+}
+
+// Check if a filter is a completion-based filter
+function isCompletionBasedFilter(filter: DateFilterValue): boolean {
+  if (typeof filter !== 'string') return false
+  return filter.startsWith('completed-')
 }
 
 function matchesCompletionFilter(completedAt: string | undefined, filter: DateFilterValue): boolean {
@@ -76,7 +100,26 @@ function matchesCompletionFilter(completedAt: string | undefined, filter: DateFi
     weekAgo.setHours(0, 0, 0, 0)
     return completedDate >= weekAgo
   }
+  // Handle "completed N days ago" filters
+  if (typeof filter === 'string' && filter.match(/^completed-\d+-days-ago$/)) {
+    if (!completedAt) return false
+    const daysAgo = parseInt(filter.split('-')[1])
+    const completedDate = new Date(completedAt)
+    const targetDate = new Date()
+    targetDate.setDate(targetDate.getDate() - daysAgo)
+    return (
+      completedDate.getFullYear() === targetDate.getFullYear() &&
+      completedDate.getMonth() === targetDate.getMonth() &&
+      completedDate.getDate() === targetDate.getDate()
+    )
+  }
   return true
+}
+
+interface FilterOption {
+  value: string
+  label: string
+  submenu?: FilterOption[]
 }
 
 function FilterButton({
@@ -90,25 +133,66 @@ function FilterButton({
   icon: React.ComponentType<{ size?: number; className?: string }>
   label: string
   active: boolean
-  options: { value: string; label: string }[]
+  options: FilterOption[]
   value: string
   onChange: (value: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [submenuOpen, setSubmenuOpen] = useState<string | null>(null)
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const ref = useRef<HTMLDivElement>(null)
+
+  // Clear timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current)
+    }
+  }, [])
 
   useEffect(() => {
     if (!isOpen) return
     const handleClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setIsOpen(false)
+        setSubmenuOpen(null)
       }
     }
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [isOpen])
 
-  const selectedLabel = options.find(o => o.value === value)?.label || label
+  // Delayed close for submenu - allows mouse to travel to submenu
+  const handleSubmenuMouseEnter = (optionValue: string) => {
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current)
+      closeTimeoutRef.current = null
+    }
+    setSubmenuOpen(optionValue)
+  }
+
+  const handleSubmenuMouseLeave = () => {
+    closeTimeoutRef.current = setTimeout(() => {
+      setSubmenuOpen(null)
+    }, 150) // 150ms delay before closing
+  }
+
+  // Find the selected label - check both top-level and submenu options
+  const findSelectedLabel = (): string => {
+    for (const option of options) {
+      if (option.value === value) return option.label
+      if (option.submenu) {
+        const subOption = option.submenu.find(o => o.value === value)
+        if (subOption) return subOption.label
+      }
+    }
+    return label
+  }
+  const selectedLabel = findSelectedLabel()
+
+  // Check if current value is in a submenu
+  const isValueInSubmenu = (option: FilterOption): boolean => {
+    return option.submenu?.some(o => o.value === value) ?? false
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -138,20 +222,79 @@ function FilterButton({
           shadow-lg dark:shadow-xl dark:shadow-black/30
         ">
           {options.map(option => (
-            <button
-              key={option.value}
-              onClick={() => { onChange(option.value); setIsOpen(false) }}
-              className={`
-                w-full text-left px-3 py-2 text-xs
-                transition-colors
-                ${value === option.value
-                  ? 'text-accent bg-accent/10'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
-                }
-              `}
-            >
-              {option.label}
-            </button>
+            option.submenu ? (
+              // Submenu item with flyout to the right
+              <div
+                key={option.value}
+                className="relative"
+                onMouseEnter={() => handleSubmenuMouseEnter(option.value)}
+                onMouseLeave={handleSubmenuMouseLeave}
+              >
+                <button
+                  className={`
+                    w-full text-left px-3 py-2 text-xs flex items-center justify-between
+                    transition-colors
+                    ${isValueInSubmenu(option)
+                      ? 'text-accent bg-accent/10'
+                      : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+                    }
+                  `}
+                >
+                  <span>{option.label}</span>
+                  <ChevronDown size={10} className="-rotate-90" />
+                </button>
+                {submenuOpen === option.value && (
+                  <div
+                    className="
+                      absolute left-full top-0 z-[101]
+                      min-w-[180px] pl-1
+                    "
+                    onMouseEnter={() => handleSubmenuMouseEnter(option.value)}
+                    onMouseLeave={handleSubmenuMouseLeave}
+                  >
+                    <div className="
+                      bg-white dark:bg-gray-800 rounded-lg
+                      border border-gray-200 dark:border-white/10
+                      shadow-lg dark:shadow-xl dark:shadow-black/30
+                      py-1.5
+                    ">
+                      {option.submenu.map(subOption => (
+                        <button
+                          key={subOption.value}
+                          onClick={() => { onChange(subOption.value); setIsOpen(false); setSubmenuOpen(null) }}
+                          className={`
+                            w-full text-left px-3 py-2 text-xs
+                            transition-colors
+                            ${value === subOption.value
+                              ? 'text-accent bg-accent/10'
+                              : 'text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+                            }
+                          `}
+                        >
+                          {subOption.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // Regular item
+              <button
+                key={option.value}
+                onClick={() => { onChange(option.value); setIsOpen(false) }}
+                className={`
+                  w-full text-left px-3 py-2 text-xs
+                  transition-colors
+                  ${value === option.value
+                    ? 'text-accent bg-accent/10'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
+                  }
+                `}
+              >
+                {option.label}
+              </button>
+            )
           ))}
         </div>
       )}
@@ -246,7 +389,7 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
 
   // Filter tree nodes based on current filters
   const filteredTrees = useMemo(() => {
-    const isCompletionFilter = filters.dateFilter === 'completed-today' || filters.dateFilter === 'completed-yesterday' || filters.dateFilter === 'completed-week'
+    const isCompletionFilter = isCompletionBasedFilter(filters.dateFilter)
 
     // Check if a todo passes the filters
     function passesFilters(todo: TodoWithContext): boolean {
@@ -300,7 +443,7 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
 
   // Get promoted subtasks that should also appear as standalone items
   const promotedTodos = useMemo(() => {
-    const isCompletionFilter = filters.dateFilter === 'completed-today' || filters.dateFilter === 'completed-yesterday' || filters.dateFilter === 'completed-week'
+    const isCompletionFilter = isCompletionBasedFilter(filters.dateFilter)
 
     let promoted = allTodos.filter(t =>
       t.cleanText.length > 0 && t.isPromoted === true
@@ -334,14 +477,22 @@ export function TodoPane({ stickies, onToggle, onFocusSticky, filters, setFilter
   const totalCount = allTodos.filter(t => t.cleanText.length > 0).length
   const hasActiveFilters = filters.tag || filters.dateFilter !== 'all' || filters.hideCompleted
 
-  const dateOptions = [
+  const dateOptions: FilterOption[] = [
     { value: 'all', label: 'All dates' },
     { value: 'today', label: 'Today' },
     { value: 'yesterday', label: 'Yesterday' },
     { value: 'week', label: 'This week' },
-    { value: 'completed-today', label: 'Done today' },
-    { value: 'completed-yesterday', label: 'Done yesterday' },
-    { value: 'completed-week', label: 'Done this week' },
+    {
+      value: '__done__',
+      label: 'Done',
+      submenu: [
+        { value: 'completed-today', label: 'Today' },
+        { value: 'completed-yesterday', label: getYesterdayLabel() },
+        { value: 'completed-2-days-ago', label: getDayLabel(2) },
+        { value: 'completed-3-days-ago', label: getDayLabel(3) },
+        { value: 'completed-week', label: 'This week' },
+      ]
+    },
   ]
 
   const tagOptions = [
