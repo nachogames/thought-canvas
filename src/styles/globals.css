@@ -5,688 +5,760 @@
 
 /* Custom theme configuration for Tailwind v4 */
 @theme {
-  /* 4px spacing grid */
-  --spacing-1: 4px;
-  --spacing-2: 8px;
-  --spacing-3: 12px;
-  --spacing-4: 16px;
-  --spacing-5: 20px;
-  --spacing-6: 24px;
-  --spacing-7: 28px;
-  --spacing-8: 32px;
-  --spacing-10: 40px;
-  --spacing-12: 48px;
+    /* 4px spacing grid */
+    --spacing-1: 4px;
+    --spacing-2: 8px;
+    --spacing-3: 12px;
+    --spacing-4: 16px;
+    --spacing-5: 20px;
+    --spacing-6: 24px;
+    --spacing-7: 28px;
+    --spacing-8: 32px;
+    --spacing-10: 40px;
+    --spacing-12: 48px;
 
-  /* Border radius (sharp system for precision aesthetic) */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 10px;
-  --radius-2xl: 14px;
-  --radius-3xl: 18px;
+    /* Border radius (sharp system for precision aesthetic) */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 10px;
+    --radius-2xl: 14px;
+    --radius-3xl: 18px;
 
-  /* Typography - IBM Plex */
-  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+    /* Typography - IBM Plex */
+    --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 
-  /* Font sizes with line heights */
-  /* LINE_HEIGHT = 26px is the single source of truth (from layout.ts) */
-  --text-xs: 13px;
-  --text-xs--line-height: 1.5;
-  --text-sm: 14px;
-  --text-sm--line-height: 1.5;
-  --text-base: 15px;
-  --text-base--line-height: 1.733;  /* 15 * 1.733 ≈ 26px - matches LINE_HEIGHT constant */
-  --text-lg: 16px;
-  --text-lg--line-height: 1.5;
-  --text-xl: 19px;
-  --text-xl--line-height: 1.4;
+    /* Font sizes with line heights */
+    /* LINE_HEIGHT = 26px is the single source of truth (from layout.ts) */
+    --text-xs: 13px;
+    --text-xs--line-height: 1.5;
+    --text-sm: 14px;
+    --text-sm--line-height: 1.5;
+    --text-base: 15px;
+    --text-base--line-height: 1.733; /* 15 * 1.733 ≈ 26px - matches LINE_HEIGHT constant */
+    --text-lg: 16px;
+    --text-lg--line-height: 1.5;
+    --text-xl: 19px;
+    --text-xl--line-height: 1.4;
 
-  /* Transitions */
-  --transition-fast: 150ms ease;
-  --transition-base: 200ms ease;
-  --transition-slow: 250ms ease;
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-base: 200ms ease;
+    --transition-slow: 250ms ease;
 
-  /* Z-index scale */
-  --z-base: 1;
-  --z-sticky: 10;
-  --z-sticky-selected: 100;
-  --z-menu: 1000;
-  --z-modal: 2000;
+    /* Z-index scale */
+    --z-base: 1;
+    --z-sticky: 10;
+    --z-sticky-selected: 100;
+    --z-menu: 1000;
+    --z-modal: 2000;
 }
 
 /* CSS Custom Properties for theming */
 :root {
-  /* Dark theme (default) - using Tailwind gray-900/800 */
-  --color-bg: #111827;           /* gray-900 */
-  --color-bg-elevated: #1f2937;  /* gray-800 */
+    /* Dark theme (default) - using Tailwind gray-900/800 */
+    --color-bg: #111827; /* gray-900 */
+    --color-bg-elevated: #1f2937; /* gray-800 */
 
-  /* Text hierarchy - 4 levels */
-  --color-foreground: #f9fafb;   /* gray-50 */
-  --color-secondary: #9ca3af;    /* gray-400 */
-  --color-muted: #6b7280;        /* gray-500 */
-  --color-faint: #374151;        /* gray-700 */
+    /* Text hierarchy - 4 levels */
+    --color-foreground: #f9fafb; /* gray-50 */
+    --color-secondary: #9ca3af; /* gray-400 */
+    --color-muted: #6b7280; /* gray-500 */
+    --color-faint: #374151; /* gray-700 */
 
-  /* Borders */
-  --color-border: #374151;       /* gray-700 */
-  --color-border-hover: #4b5563; /* gray-600 */
+    /* Borders */
+    --color-border: #374151; /* gray-700 */
+    --color-border-hover: #4b5563; /* gray-600 */
 
-  /* Accent - Indigo */
-  --color-accent: #6366f1;       /* indigo-500 */
-  --color-accent-light: #818cf8; /* indigo-400 */
-  --color-accent-muted: rgba(99, 102, 241, 0.3);
-  --color-accent-subtle: rgba(99, 102, 241, 0.15);
+    /* Accent - Indigo */
+    --color-accent: #6366f1; /* indigo-500 */
+    --color-accent-light: #818cf8; /* indigo-400 */
+    --color-accent-muted: rgba(99, 102, 241, 0.3);
+    --color-accent-subtle: rgba(99, 102, 241, 0.15);
 
-  /* Semantic colors */
-  --color-success: #22c55e;
-  --color-warning: #eab308;
-  --color-danger: #ef4444;
-  --color-orange: #f97316;
+    /* Semantic colors */
+    --color-success: #22c55e;
+    --color-warning: #eab308;
+    --color-danger: #ef4444;
+    --color-orange: #f97316;
 
-  /* Priority colors */
-  --color-priority-1: inherit;
-  --color-priority-2: #eab308;
-  --color-priority-3: #f97316;
-  --color-priority-4: #ef4444;
+    /* Priority colors */
+    --color-priority-1: inherit;
+    --color-priority-2: #eab308;
+    --color-priority-3: #f97316;
+    --color-priority-4: #ef4444;
 
-  /* Shadow utilities */
-  --shadow-note: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  --shadow-note-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-  --shadow-note-selected: 0 0 0 2px #6366f1, 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    /* Shadow utilities */
+    --shadow-note:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-note-hover:
+        0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-note-selected:
+        0 0 0 2px #6366f1, 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+        0 4px 6px -2px rgba(0, 0, 0, 0.05);
 }
 
 [data-theme="light"] {
-  /* Light theme - using Tailwind grays */
-  --color-bg: #f5f5f7;           /* custom light bg */
-  --color-bg-elevated: #ffffff;  /* white */
+    /* Light theme - using Tailwind grays */
+    --color-bg: #f5f5f7; /* custom light bg */
+    --color-bg-elevated: #ffffff; /* white */
 
-  --color-foreground: #111827;   /* gray-900 */
-  --color-secondary: #6b7280;    /* gray-500 */
-  --color-muted: #9ca3af;        /* gray-400 */
-  --color-faint: #e5e7eb;        /* gray-200 */
+    --color-foreground: #111827; /* gray-900 */
+    --color-secondary: #6b7280; /* gray-500 */
+    --color-muted: #9ca3af; /* gray-400 */
+    --color-faint: #e5e7eb; /* gray-200 */
 
-  --color-border: #e5e7eb;       /* gray-200 */
-  --color-border-hover: #d1d5db; /* gray-300 */
+    --color-border: #e5e7eb; /* gray-200 */
+    --color-border-hover: #d1d5db; /* gray-300 */
 
-  --color-accent: #6366f1;       /* indigo-500 */
-  --color-accent-light: #4f46e5; /* indigo-600 */
-  --color-accent-muted: rgba(99, 102, 241, 0.15);
-  --color-accent-subtle: rgba(99, 102, 241, 0.1);
+    --color-accent: #6366f1; /* indigo-500 */
+    --color-accent-light: #4f46e5; /* indigo-600 */
+    --color-accent-muted: rgba(99, 102, 241, 0.15);
+    --color-accent-subtle: rgba(99, 102, 241, 0.1);
 }
 
 /* Base styles */
 * {
-  box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 html {
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
 body {
-  margin: 0;
-  background: var(--color-bg);
-  color: var(--color-foreground);
-  overflow: hidden;
-  transition: background 0.2s ease;
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-foreground);
+    overflow: hidden;
+    transition: background 0.2s ease;
 }
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
+    width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-faint);
-  border-radius: 4px;
+    background: var(--color-faint);
+    border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-muted);
+    background: var(--color-muted);
 }
 
 /* Focus styles */
 :focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
 }
 
 /* Selection */
 ::selection {
-  background: var(--color-accent-muted);
+    background: var(--color-accent-muted);
 }
 
 /* Tiptap Editor Styles */
 .ProseMirror {
-  outline: none;
-  font-size: 14px; /* text-sm - match static content */
+    outline: none;
+    font-size: 14px; /* text-sm - match static content */
+    line-height: 1.5; /* Match static content for consistent wrapping */
 }
 
 .ProseMirror p {
-  margin: 0;
+    margin: 0;
 }
 
 .ProseMirror p.is-editor-empty:first-child::before {
-  color: var(--color-muted);
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
+    color: var(--color-muted);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
 }
 
 /* Links */
 .ProseMirror a {
-  color: var(--color-accent);
-  text-decoration: underline;
-  cursor: text; /* Show text cursor while editing */
-  word-break: break-all; /* Break long URLs */
+    color: var(--color-accent);
+    text-decoration: underline;
+    cursor: text; /* Show text cursor while editing */
+    word-break: break-all; /* Break long URLs */
 }
 
 /* Task list (todos) */
 .ProseMirror ul[data-type="taskList"] {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
 .ProseMirror ul[data-type="taskList"] li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 2px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 2px 0;
 }
 
 .ProseMirror ul[data-type="taskList"] li > label {
-  flex-shrink: 0;
-  margin-top: 3px;
+    flex-shrink: 0;
+    margin-top: 3px;
 }
 
 .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 150ms ease-out;
-  position: relative;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 150ms ease-out;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
 .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+    border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
 
-.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
-  background: var(--color-accent);
-  border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+.ProseMirror
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:checked {
+    background: var(--color-accent);
+    border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 6px;
-  top: 2.5px;
-  width: 4px;
-  height: 9px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+.ProseMirror
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 2.5px;
+    width: 4px;
+    height: 9px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
 }
 
-.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 40%, transparent);
+.ProseMirror
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--color-accent) 40%, transparent);
 }
 
 .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > p {
-  text-decoration: line-through;
-  color: var(--color-muted);
+    text-decoration: line-through;
+    color: var(--color-muted);
 }
 
 /* Don't strikethrough nested task lists when parent is checked */
-.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div > ul[data-type="taskList"] {
-  text-decoration: none;
+.ProseMirror
+    ul[data-type="taskList"]
+    li[data-checked="true"]
+    > div
+    > ul[data-type="taskList"] {
+    text-decoration: none;
 }
 
 /* Ensure empty task items show caret */
 .ProseMirror ul[data-type="taskList"] li > div {
-  min-height: 1.5em;
-  flex: 1;
+    min-height: 1.5em;
+    flex: 1;
 }
 
 .ProseMirror ul[data-type="taskList"] li > div > p:empty::before {
-  content: '\200B'; /* Zero-width space to give height */
+    content: "\200B"; /* Zero-width space to give height */
 }
 
 /* Bullet list */
 .ProseMirror ul:not([data-type="taskList"]) {
-  list-style-type: disc;
-  padding-left: 20px;
-  margin: 0;
+    list-style-type: disc;
+    padding-left: 20px;
+    margin: 0;
 }
 
 .ProseMirror ul:not([data-type="taskList"]) li {
-  margin: 2px 0;
-  min-height: 1.5em;
+    margin: 2px 0;
+    min-height: 1.5em;
 }
 
 /* Ensure empty list items show caret */
 .ProseMirror ul:not([data-type="taskList"]) li > p:empty::before {
-  content: '\200B'; /* Zero-width space to give height */
+    content: "\200B"; /* Zero-width space to give height */
 }
 
 /* Headings */
 .ProseMirror h1 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
 }
 
 .ProseMirror h2 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
 }
 
 /* Static sticky content (non-editing mode) - mirrors ProseMirror styles */
 .sticky-content {
-  outline: none;
-  font-size: 14px; /* text-sm - match ProseMirror */
-  overflow-wrap: break-word; /* Ensure long words/URLs wrap */
-  word-wrap: break-word; /* Legacy support */
+    outline: none;
+    font-size: 14px; /* text-sm - match ProseMirror */
+    line-height: 1.5; /* Match ProseMirror for consistent wrapping */
+    overflow-wrap: break-word; /* Ensure long words/URLs wrap */
+    word-wrap: break-word; /* Legacy support */
 }
 
 .sticky-content p {
-  margin: 0;
+    margin: 0;
 }
 
 /* Empty paragraphs need min-height to show as blank lines */
 .sticky-content p:empty::before {
-  content: '\200B'; /* Zero-width space to give height */
+    content: "\200B"; /* Zero-width space to give height */
 }
 
 .sticky-content p.is-editor-empty:first-child::before {
-  color: var(--color-muted);
-  content: attr(data-placeholder);
-  float: left;
-  height: 0;
-  pointer-events: none;
+    color: var(--color-muted);
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
 }
 
 /* Links - clickable in view mode */
 .sticky-content a {
-  color: var(--color-accent);
-  text-decoration: underline;
-  cursor: pointer;
-  word-break: break-all; /* Break long URLs */
+    color: var(--color-accent);
+    text-decoration: underline;
+    cursor: pointer;
+    word-break: break-all; /* Break long URLs */
 }
 
 .sticky-content a:hover {
-  color: var(--color-accent-light);
+    color: var(--color-accent-light);
 }
 
 .sticky-content ul[data-type="taskList"] {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+    list-style: none;
+    padding: 0;
+    margin: 0;
 }
 
 .sticky-content ul[data-type="taskList"] li {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  margin: 2px 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 2px 0;
 }
 
 .sticky-content ul[data-type="taskList"] li > label {
-  flex-shrink: 0;
-  margin-top: 3px;
+    flex-shrink: 0;
+    margin-top: 3px;
 }
 
 .sticky-content ul[data-type="taskList"] li > label input[type="checkbox"] {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: transparent;
-  cursor: pointer;
-  transition: all 150ms ease-out;
-  position: relative;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 150ms ease-out;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.sticky-content ul[data-type="taskList"] li > label input[type="checkbox"]:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+.sticky-content
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
 
 /* Checked state - use data-checked on parent li for view mode compatibility */
-.sticky-content ul[data-type="taskList"] li[data-checked="true"] > label input[type="checkbox"],
-.sticky-content ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
-  background: var(--color-accent);
-  border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+.sticky-content
+    ul[data-type="taskList"]
+    li[data-checked="true"]
+    > label
+    input[type="checkbox"],
+.sticky-content
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:checked {
+    background: var(--color-accent);
+    border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.sticky-content ul[data-type="taskList"] li[data-checked="true"] > label input[type="checkbox"]::after,
-.sticky-content ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 6px;
-  top: 2.5px;
-  width: 4px;
-  height: 9px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+.sticky-content
+    ul[data-type="taskList"]
+    li[data-checked="true"]
+    > label
+    input[type="checkbox"]::after,
+.sticky-content
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 2.5px;
+    width: 4px;
+    height: 9px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
 }
 
-.sticky-content ul[data-type="taskList"] li > label input[type="checkbox"]:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-accent) 40%, transparent);
+.sticky-content
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px
+        color-mix(in srgb, var(--color-accent) 40%, transparent);
 }
 
 .sticky-content ul[data-type="taskList"] li[data-checked="true"] > div > p {
-  text-decoration: line-through;
-  color: var(--color-muted);
+    text-decoration: line-through;
+    color: var(--color-muted);
 }
 
 /* Don't strikethrough nested task lists when parent is checked */
-.sticky-content ul[data-type="taskList"] li[data-checked="true"] > div > ul[data-type="taskList"] {
-  text-decoration: none;
+.sticky-content
+    ul[data-type="taskList"]
+    li[data-checked="true"]
+    > div
+    > ul[data-type="taskList"] {
+    text-decoration: none;
 }
 
 /* Canceled tasks (text starts with //) - red strikethrough, distinct from completed */
 .sticky-content ul[data-type="taskList"] li[data-canceled="true"] > div > p {
-  text-decoration: line-through;
-  color: color-mix(in srgb, var(--color-danger) 60%, transparent);
+    text-decoration: line-through;
+    color: color-mix(in srgb, var(--color-danger) 60%, transparent);
 }
 
 /* Canceled task checkbox - dim it out */
-.sticky-content ul[data-type="taskList"] li[data-canceled="true"] > label input[type="checkbox"] {
-  opacity: 0.4;
-  pointer-events: none;
+.sticky-content
+    ul[data-type="taskList"]
+    li[data-canceled="true"]
+    > label
+    input[type="checkbox"] {
+    opacity: 0.4;
+    pointer-events: none;
 }
 
 /* Don't strikethrough nested task lists when parent is canceled */
-.sticky-content ul[data-type="taskList"] li[data-canceled="true"] > div > ul[data-type="taskList"] {
-  text-decoration: none;
+.sticky-content
+    ul[data-type="taskList"]
+    li[data-canceled="true"]
+    > div
+    > ul[data-type="taskList"] {
+    text-decoration: none;
 }
 
 .sticky-content ul[data-type="taskList"] li > div {
-  min-height: 1.5em;
-  flex: 1;
+    min-height: 1.5em;
+    flex: 1;
 }
 
 .sticky-content ul:not([data-type="taskList"]) {
-  list-style-type: disc;
-  padding-left: 20px;
-  margin: 0;
+    list-style-type: disc;
+    padding-left: 20px;
+    margin: 0;
 }
 
 .sticky-content ul:not([data-type="taskList"]) li {
-  margin: 2px 0;
-  min-height: 1.5em;
+    margin: 2px 0;
+    min-height: 1.5em;
 }
 
 .sticky-content h1 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0;
 }
 
 .sticky-content h2 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
 }
 
 /* Todo HTML content (in TodoPane) - mirrors sticky-content styles but adapted for task panel */
 .todo-html-content {
-  overflow-wrap: break-word;
-  word-wrap: break-word;
+    overflow-wrap: break-word;
+    word-wrap: break-word;
 }
 
 .todo-html-content p {
-  margin: 0;
+    margin: 0;
 }
 
 .todo-html-content p:empty::before {
-  content: '\200B';
+    content: "\200B";
 }
 
 /* Links */
 .todo-html-content a {
-  color: var(--color-accent);
-  text-decoration: underline;
-  cursor: pointer;
-  word-break: break-all;
+    color: var(--color-accent);
+    text-decoration: underline;
+    cursor: pointer;
+    word-break: break-all;
 }
 
 .todo-html-content a:hover {
-  color: var(--color-accent-light);
+    color: var(--color-accent-light);
 }
 
 /* Nested task lists in todo panel - render as simple text since we handle checkboxes separately */
 .todo-html-content ul[data-type="taskList"] {
-  list-style: none;
-  padding: 0;
-  margin: 4px 0 0 0;
+    list-style: none;
+    padding: 0;
+    margin: 4px 0 0 0;
 }
 
 .todo-html-content ul[data-type="taskList"] li {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin: 2px 0;
-  font-size: inherit;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    margin: 2px 0;
+    font-size: inherit;
 }
 
 .todo-html-content ul[data-type="taskList"] li > label {
-  flex-shrink: 0;
-  margin-top: 1px;
+    flex-shrink: 0;
+    margin-top: 1px;
 }
 
 .todo-html-content ul[data-type="taskList"] li > label input[type="checkbox"] {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-bg);
-  cursor: pointer;
-  transition: all 150ms ease-out;
-  position: relative;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-bg);
+    cursor: pointer;
+    transition: all 150ms ease-out;
+    position: relative;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.todo-html-content ul[data-type="taskList"] li > label input[type="checkbox"]:hover {
-  border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
+.todo-html-content
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:hover {
+    border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
 
-.todo-html-content ul[data-type="taskList"] li > label input[type="checkbox"]:checked {
-  background: var(--color-accent);
-  border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+.todo-html-content
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:checked {
+    background: var(--color-accent);
+    border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
-.todo-html-content ul[data-type="taskList"] li > label input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 6px;
-  top: 2.5px;
-  width: 4px;
-  height: 9px;
-  border: solid white;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+.todo-html-content
+    ul[data-type="taskList"]
+    li
+    > label
+    input[type="checkbox"]:checked::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    top: 2.5px;
+    width: 4px;
+    height: 9px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
 }
 
 .todo-html-content ul[data-type="taskList"] li[data-checked="true"] > div {
-  text-decoration: line-through;
-  opacity: 0.6;
+    text-decoration: line-through;
+    opacity: 0.6;
 }
 
 .todo-html-content ul[data-type="taskList"] li > div {
-  flex: 1;
+    flex: 1;
 }
 
 /* Bullet lists */
 .todo-html-content ul:not([data-type="taskList"]) {
-  list-style-type: disc;
-  padding-left: 16px;
-  margin: 4px 0 0 0;
+    list-style-type: disc;
+    padding-left: 16px;
+    margin: 4px 0 0 0;
 }
 
 .todo-html-content ul:not([data-type="taskList"]) li {
-  margin: 2px 0;
+    margin: 2px 0;
 }
 
 /* Headings - scaled down for panel */
 .todo-html-content h1 {
-  font-size: 1.1rem;
-  font-weight: 600;
-  margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
 }
 
 .todo-html-content h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
 }
 
 /* Slash Command Menu */
 .slash-menu {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 4px;
-  min-width: 220px;
-  max-height: 320px;
-  overflow-y: auto;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    padding: 4px;
+    min-width: 220px;
+    max-height: 320px;
+    overflow-y: auto;
 }
 
 .slash-menu-empty {
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 12px 16px;
-  color: var(--color-muted);
-  font-size: 13px;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    color: var(--color-muted);
+    font-size: 13px;
 }
 
 .slash-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 8px 10px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s ease;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.1s ease;
 }
 
 .slash-menu-item:hover,
 .slash-menu-item.is-selected {
-  background: var(--color-accent-subtle);
+    background: var(--color-accent-subtle);
 }
 
 .slash-menu-item-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 4px;
-  background: var(--color-faint);
-  color: var(--color-secondary);
-  flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    background: var(--color-faint);
+    color: var(--color-secondary);
+    flex-shrink: 0;
 }
 
 .slash-menu-item.is-selected .slash-menu-item-icon {
-  background: var(--color-accent-muted);
-  color: var(--color-accent);
+    background: var(--color-accent-muted);
+    color: var(--color-accent);
 }
 
 .slash-menu-item-content {
-  flex: 1;
-  min-width: 0;
+    flex: 1;
+    min-width: 0;
 }
 
 .slash-menu-item-label {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-foreground);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-foreground);
 }
 
 .slash-menu-item-description {
-  font-size: 12px;
-  color: var(--color-muted);
-  margin-top: 1px;
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-top: 1px;
 }
 
 /* Tippy tooltip styles */
 .tippy-box {
-  background: transparent;
-  border: none;
+    background: transparent;
+    border: none;
 }
 
 .tippy-content {
-  padding: 0;
+    padding: 0;
 }
 
 /* Keyboard shortcut key styling */
 .key {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 18px;
-  padding: 0 5px;
-  font-family: var(--font-sans);
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 1;
-  color: var(--color-secondary);
-  background: var(--color-faint);
-  border-radius: 4px;
-  white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 5px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--color-secondary);
+    background: var(--color-faint);
+    border-radius: 4px;
+    white-space: nowrap;
 }
 
 /* Disable transitions during drag for performance */
 .is-dragging [data-sticky] {
-  transition: none !important;
+    transition: none !important;
 }
 
 /* Mobile touch handling */
 @media (max-width: 768px) {
-  /* Prevent text selection on touch */
-  .canvas-bg {
-    -webkit-user-select: none;
-    user-select: none;
-  }
+    /* Prevent text selection on touch */
+    .canvas-bg {
+        -webkit-user-select: none;
+        user-select: none;
+    }
 
-  /* Ensure smooth scrolling in bottom sheet */
-  .bottom-sheet-content {
-    -webkit-overflow-scrolling: touch;
-  }
+    /* Ensure smooth scrolling in bottom sheet */
+    .bottom-sheet-content {
+        -webkit-overflow-scrolling: touch;
+    }
 }
