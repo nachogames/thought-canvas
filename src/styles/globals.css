@@ -171,6 +171,8 @@ body {
     outline: none;
     font-size: 14px; /* text-sm - match static content */
     line-height: 1.5; /* Match static content for consistent wrapping */
+    overflow-wrap: break-word; /* Ensure long words/URLs wrap - match static content */
+    word-wrap: break-word; /* Legacy support */
 }
 
 .ProseMirror p {
