@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+#IMPORTANT
+NEVER GIT COMMIT or GIT PUSH WITHOUT EXPLICT APPROVAL FROM USER
+
 ## Commands
 
 ```bash
