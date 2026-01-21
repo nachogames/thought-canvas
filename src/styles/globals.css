@@ -330,6 +330,7 @@ body {
     line-height: 1.5; /* Match ProseMirror for consistent wrapping */
     overflow-wrap: break-word; /* Ensure long words/URLs wrap */
     word-wrap: break-word; /* Legacy support */
+    white-space: break-spaces; /* Match ProseMirror for consistent line breaking */
 }
 
 .sticky-content p {
