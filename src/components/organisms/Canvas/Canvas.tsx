@@ -350,6 +350,7 @@ export function Canvas({ children }: CanvasProps) {
     })
 
     return groups
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measuredHeightsKey forces recalculation when measuredHeight changes
   }, [regularStickies, getStickyHeight, measuredHeightsKey])
 
   // Same for task stickies
@@ -392,6 +393,7 @@ export function Canvas({ children }: CanvasProps) {
       width: maxX - minX,
       height: maxY - minY
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- taskMeasuredHeightsKey forces recalculation when measuredHeight changes
   }, [showOverlay, taskStickies, getStickyHeight, taskMeasuredHeightsKey])
 
   // Determine if we're dragging (for cursor and text selection)
@@ -450,7 +452,7 @@ export function Canvas({ children }: CanvasProps) {
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [panning, updateDrag, endDrag, updatePan, endPan])
+  }, [panning, drag, updateDrag, endDrag, updatePan, endPan])
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement

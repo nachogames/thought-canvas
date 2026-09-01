@@ -10,7 +10,7 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [dragY, setDragY] = useState(0)
   // Track if we should render (stays true during close animation)
-  const [shouldRender, setShouldRender] = useState(false)
+  const [shouldRender, setShouldRender] = useState(isOpen)
   // Track the visual state (for animation)
   const [isVisible, setIsVisible] = useState(false)
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -19,21 +19,32 @@ export function BottomSheet({ isOpen, onClose, children }: BottomSheetProps) {
   const sheetHeight = useRef(0)
   // Track if drag started from content at scroll top
   const dragFromContentRef = useRef(false)
+  // Track the previous isOpen value so we can react to changes during render
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen)
 
-  // Handle open/close with animation timing
-  useEffect(() => {
+  // Adjust state synchronously during render when isOpen changes
+  // (see https://react.dev/learn/you-might-not-need-an-effect#adjusting-state-when-a-prop-changes)
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen)
     if (isOpen) {
       // Mount first, then animate in after browser paint
       setShouldRender(true)
       setDragY(0)
+    } else {
+      // Animate out first, then unmount
+      setIsVisible(false)
+    }
+  }
+
+  // Animation timing: flip visibility after mount, and unmount after the close transition
+  useEffect(() => {
+    if (isOpen) {
       // Small delay ensures DOM is painted at initial position before animating
       const timer = setTimeout(() => {
         setIsVisible(true)
       }, 20)
       return () => clearTimeout(timer)
     } else {
-      // Animate out first, then unmount
-      setIsVisible(false)
       const timer = setTimeout(() => {
         setShouldRender(false)
       }, 300) // Match transition duration

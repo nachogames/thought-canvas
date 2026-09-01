@@ -32,15 +32,19 @@ export function DateFilter({ value, onChange }: DateFilterProps) {
   const [customStart, setCustomStart] = useState('')
   const [customEnd, setCustomEnd] = useState('')
   const menuRef = useRef<HTMLDivElement>(null)
+  const [prevValue, setPrevValue] = useState(value)
 
   // Initialize custom dates if value is a range
-  useEffect(() => {
+  // (adjust state during render rather than in an effect, since this only
+  // needs to run when `value` itself changes: https://react.dev/learn/you-might-not-need-an-effect#adjusting-state-when-a-prop-changes)
+  if (value !== prevValue) {
+    setPrevValue(value)
     if (typeof value === 'object') {
       setCustomStart(value.start)
       setCustomEnd(value.end)
       setShowCustom(true)
     }
-  }, [value])
+  }
 
   // Click outside to close
   useEffect(() => {

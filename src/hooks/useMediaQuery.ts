@@ -1,24 +1,19 @@
-import { useState, useEffect } from 'react'
+import { useSyncExternalStore } from 'react'
 
 /**
  * Hook to detect if a media query matches
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() => {
-    if (typeof window === 'undefined') return false
-    return window.matchMedia(query).matches
-  })
-
-  useEffect(() => {
+  const subscribe = (onChange: () => void) => {
     const mediaQuery = window.matchMedia(query)
-    setMatches(mediaQuery.matches)
+    mediaQuery.addEventListener('change', onChange)
+    return () => mediaQuery.removeEventListener('change', onChange)
+  }
 
-    const handler = (e: MediaQueryListEvent) => setMatches(e.matches)
-    mediaQuery.addEventListener('change', handler)
-    return () => mediaQuery.removeEventListener('change', handler)
-  }, [query])
+  const getSnapshot = () => window.matchMedia(query).matches
+  const getServerSnapshot = () => false
 
-  return matches
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
 }
 
 /**

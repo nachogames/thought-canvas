@@ -115,7 +115,6 @@ interface StickiesContextValue {
   drag: DragState | null
   offset: PanState
   panning: boolean
-  panStart: PanState | null
   filters: TodoFilters
   showTasks: boolean
   taskViewMode: 'panel' | 'overlay'
@@ -624,7 +623,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       historyRef.current.push(JSON.parse(JSON.stringify(stickies)))
       historyIndexRef.current = 0
     }
-  }, [])
+  }, [stickies])
 
   // Sync task stickies from todos in regular stickies (only in overlay mode)
   useEffect(() => {
@@ -801,7 +800,10 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       })
 
     if (hasChanges) {
-      // Replace task stickies while keeping regular stickies unchanged
+      // Replace task stickies while keeping regular stickies unchanged.
+      // Guarded by hasChanges so this doesn't loop; the sync logic here is too
+      // involved (todo parsing + collision layout) to compute inline during render.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setStickies([...regularStickies, ...newTaskStickies])
     }
   }, [showTasks, taskViewMode, stickies, taskCardPositions, drag, filters])
@@ -1800,7 +1802,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, editingId, selectedIds, deleteSelectedStickies, arrangeAll, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
+  }, [undo, redo, editingId, selectedIds, stickies, deleteSelectedStickies, arrangeAll, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
 
   // Auto-arrange task stickies when overlay first opens
   useEffect(() => {
@@ -2333,7 +2335,6 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     drag,
     offset,
     panning,
-    panStart: panStartRef.current,
     filters,
     showTasks,
     taskViewMode,
@@ -2395,6 +2396,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components -- hook colocated with its provider
 export function useStickies() {
   const context = useContext(StickiesContext)
   if (!context) {

@@ -205,7 +205,7 @@ function getTaskItemHtmlContent(element: Element): string {
   }
 
   // Clean up: remove leading/trailing breaks, collapse multiple breaks
-  let result = parts.join('')
+  const result = parts.join('')
     .replace(/^(<br>|\s)+/, '') // Remove leading breaks/whitespace
     .replace(/(<br>|\s)+$/, '') // Remove trailing breaks/whitespace
     .replace(/(<br>){3,}/g, '<br><br>') // Collapse 3+ breaks to 2

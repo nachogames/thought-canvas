@@ -4,7 +4,6 @@ import Suggestion, { type SuggestionOptions } from '@tiptap/suggestion'
 import tippy, { type Instance as TippyInstance } from 'tippy.js'
 import {
   forwardRef,
-  useEffect,
   useImperativeHandle,
   useState,
   useCallback,
@@ -65,6 +64,14 @@ interface CommandListProps {
 const CommandList = forwardRef<CommandListRef, CommandListProps>(
   ({ items, command }, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0)
+    const [prevItems, setPrevItems] = useState(items)
+
+    // Reset the selection whenever the filtered item list changes
+    // (adjust state during render: https://react.dev/learn/you-might-not-need-an-effect#adjusting-state-when-a-prop-changes)
+    if (items !== prevItems) {
+      setPrevItems(items)
+      setSelectedIndex(0)
+    }
 
     const selectItem = useCallback(
       (index: number) => {
@@ -93,10 +100,6 @@ const CommandList = forwardRef<CommandListRef, CommandListProps>(
         return false
       },
     }))
-
-    useEffect(() => {
-      setSelectedIndex(0)
-    }, [items])
 
     if (items.length === 0) {
       return (
