@@ -71,11 +71,11 @@
     --color-border: #374151; /* gray-700 */
     --color-border-hover: #4b5563; /* gray-600 */
 
-    /* Accent - Indigo */
-    --color-accent: #6366f1; /* indigo-500 */
-    --color-accent-light: #818cf8; /* indigo-400 */
-    --color-accent-muted: rgba(99, 102, 241, 0.3);
-    --color-accent-subtle: rgba(99, 102, 241, 0.15);
+    /* Accent - Teal */
+    --color-accent: #14b8a6; /* teal-500 */
+    --color-accent-light: #2dd4bf; /* teal-400 */
+    --color-accent-muted: rgba(20, 184, 166, 0.3); /* teal-500 at 30% */
+    --color-accent-subtle: rgba(20, 184, 166, 0.15); /* teal-500 at 15% */
 
     /* Semantic colors */
     --color-success: #22c55e;
@@ -112,10 +112,10 @@
     --color-border: #e5e7eb; /* gray-200 */
     --color-border-hover: #d1d5db; /* gray-300 */
 
-    --color-accent: #6366f1; /* indigo-500 */
-    --color-accent-light: #4f46e5; /* indigo-600 */
-    --color-accent-muted: rgba(99, 102, 241, 0.15);
-    --color-accent-subtle: rgba(99, 102, 241, 0.1);
+    --color-accent: #14b8a6; /* teal-500 */
+    --color-accent-light: #0d9488; /* teal-600 */
+    --color-accent-muted: rgba(20, 184, 166, 0.15); /* teal-500 at 15% */
+    --color-accent-subtle: rgba(20, 184, 166, 0.1); /* teal-500 at 10% */
 }
 
 /* Base styles */
