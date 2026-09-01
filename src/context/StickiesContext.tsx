@@ -418,6 +418,12 @@ const loadStickies = (): Sticky[] => {
 
 export function StickiesProvider({ children }: StickiesProviderProps) {
   const [stickies, setStickies] = useState<Sticky[]>(loadStickies)
+  // Mirrors `stickies` for effects that need the latest value without re-running
+  // (re-adding listeners etc.) on every sticky change.
+  const stickiesRef = useRef(stickies)
+  useEffect(() => {
+    stickiesRef.current = stickies
+  }, [stickies])
 
   // History for undo/redo
   const historyRef = useRef<Sticky[][]>([])
@@ -617,13 +623,14 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
     }
   }, [])
 
-  // Initialize history with current state
+  // Initialize history with current state (runs once on mount; reads the
+  // latest stickies via ref so it doesn't need to re-run on every change)
   useEffect(() => {
     if (historyRef.current.length === 0) {
-      historyRef.current.push(JSON.parse(JSON.stringify(stickies)))
+      historyRef.current.push(JSON.parse(JSON.stringify(stickiesRef.current)))
       historyIndexRef.current = 0
     }
-  }, [stickies])
+  }, [])
 
   // Sync task stickies from todos in regular stickies (only in overlay mode)
   useEffect(() => {
@@ -1748,7 +1755,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
       if (e.key === 'Enter' && selectedIds.size === 1 && !editingId) {
         e.preventDefault()
         const stickyId = [...selectedIds][0]
-        const sticky = stickies.find(s => s.id === stickyId)
+        const sticky = stickiesRef.current.find(s => s.id === stickyId)
         if (sticky) {
           editingContentRef.current = { id: stickyId, content: sticky.content }
         }
@@ -1802,7 +1809,7 @@ export function StickiesProvider({ children }: StickiesProviderProps) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [undo, redo, editingId, selectedIds, stickies, deleteSelectedStickies, arrangeAll, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
+  }, [undo, redo, editingId, selectedIds, deleteSelectedStickies, arrangeAll, centerOnToday, sortedDays, focusedDayIndex, centerOnDay])
 
   // Auto-arrange task stickies when overlay first opens
   useEffect(() => {

@@ -411,6 +411,13 @@ export function Canvas({ children }: CanvasProps) {
     }
   }, [isDragging, panning])
 
+  // Mirrors `drag` for the listener effect below so it doesn't need to
+  // re-add its global listeners on every drag-position update.
+  const dragRef = useRef(drag)
+  useEffect(() => {
+    dragRef.current = drag
+  }, [drag])
+
   // Mouse and touch event handlers
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
@@ -425,7 +432,7 @@ export function Canvas({ children }: CanvasProps) {
       if (panning) {
         e.preventDefault() // Prevent scrolling while panning
         updatePan(e)
-      } else if (drag) {
+      } else if (dragRef.current) {
         e.preventDefault() // Prevent scrolling while dragging
         updateDrag(e)
       }
@@ -452,7 +459,7 @@ export function Canvas({ children }: CanvasProps) {
       window.removeEventListener('touchmove', handleTouchMove)
       window.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [panning, drag, updateDrag, endDrag, updatePan, endPan])
+  }, [panning, updateDrag, endDrag, updatePan, endPan])
 
   const handleCanvasClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement

@@ -1,2 +1,5 @@
+# esbuild's postinstall script only downloads the correct platform binary
+# for this Vite dependency; approving it lets `pnpm install` complete
+# non-interactively instead of failing on pnpm's build-approval prompt.
 allowBuilds:
   esbuild: true
